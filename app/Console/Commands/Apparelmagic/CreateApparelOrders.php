@@ -27,7 +27,7 @@ class CreateApparelOrders extends Command
 
             if ($shopifyOrder) {
                 $response = $this->getOrdersByOrderId($shopifyOrder->shopify_order_id);
-                // CreateApparelmagicOrders::dispatch($shopifyOrder);
+              //  CreateApparelmagicOrders::dispatch($shopifyOrder);
                 if (empty($response['response'])) {
                      $this->info("create");
                     CreateApparelmagicOrders::dispatch($shopifyOrder);
@@ -94,6 +94,26 @@ class CreateApparelOrders extends Command
                                     'warehouse_id' => $orderItem['warehouse_id'] ?? $item['warehouse_id'] ?? null,
                                 ]
                             );
+                        }
+                    }
+                    if (!empty($orderDetail) && ($order['credit_status'] ?? '') != 'Pending') {
+                        if ($orderDetail->allocated == 0) {
+                            $response=$this->getOrdersByOrderId($orderDetail->shopify_order_id);
+                            $amOrder = $response['response'][0];
+// dd($amOrder['order_items']);
+                            $amItems=collect($amOrder['order_items']);
+                            $items = $amItems->where('qty_open', '>', 0);
+                            $itemIds = $items->pluck('id')->toArray();
+                            if ($this->allocateAmOrder($orderDetail,$itemIds)) {
+                                $orderDetail->allocated = 1;
+                                $orderDetail->save();
+                                Log::info("AM order allocated: " . $orderDetail->shopify_order_id);
+                            } else {
+                                Log::error("Failed to allocate AM order: " . $orderDetail->shopify_order_id);
+                            }
+
+                        } else {
+                            Log::info("AM order already allocated: " . $orderDetail->shopify_order_id);
                         }
                     }
                 }
