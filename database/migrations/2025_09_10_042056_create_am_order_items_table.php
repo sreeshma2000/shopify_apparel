@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('sku_alt')->nullable();
             $table->string('upc')->nullable();
             $table->string('style_number')->nullable();
-            $table->string('description')->nullable();
+            $table->longText('description')->nullable();
             $table->string('size')->nullable();
             $table->string('qty')->nullable();
             $table->string('is_taxable')->nullable();

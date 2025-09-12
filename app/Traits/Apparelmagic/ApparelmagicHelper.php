@@ -520,7 +520,7 @@ trait ApparelmagicHelper
                 Log::error('Exception while fetching currencies', ['error' => $e->getMessage()]); 
                 return []; 
             } 
-        }
+    }
 
 
     public function getAmAccount($settings)
@@ -607,39 +607,34 @@ trait ApparelmagicHelper
             $header['email']      = $shopifyOrder['shopify_email'] ?? '';
 
             $items = [];
-            $orderItems = $shopifyOrder['order_items'] ?? [];
-
+            $orderItems = $shopifyOrder->order_items ?? [];
+log::info('orderItems: '.json_encode($orderItems));
             foreach ($orderItems as $item) {
-            $variant = ProductVariant::where('shopify_sku', $item['shopify_sku'])
-                ->whereNotNull('product_id')
-                ->first();
-
-            if ($variant) {
-                $qty = (int) ($item->shopify_quantity ?? 0);
-                $qty = $qty > 0 ? $qty : 1;
-
+                $variant = ProductVariant::where('shopify_sku', $item['shopify_sku'])->whereNotNull('product_id')->first();
+               // Log::info("variant".json_encode($variant));
+                if (!$variant) {
+                    continue; 
+                }
+                $quantity = $item->shopify_quantity; 
                 $lineTotal = (float) $item->shopify_amount;
-                $unitPrice = $qty > 0 ? ($lineTotal / $qty) : 0;
+                $unitPrice = $quantity > 0 ? ($lineTotal / $quantity) : 0;
 
                 $items[] = [
                     'sku'        => $variant->sku_id,   
-                    'qty'        => (string) $qty,
+                    'qty' => (string) $quantity,
                     'unit_price' => (string) $unitPrice,
                     'amount'     => (string) $lineTotal,
-                    'is_taxable' => '1',
                 ];
             }
-        }
-
-            Log::info("items in apparel " . json_encode($items));
-
+           // Log::info("items in apparel " . json_encode($items));
             $params = [
                 'time'   => (string) $time,
                 'token'  => (string) $token,
                 'header' => $header,
                 'items'  => $items,
             ];
-
+            Log::info("params".json_encode($params));
+            
             $response = $this->apparelMagicApiPostRequest($baseUrl, $params);
             Log::info("am-order" . json_encode($response));
             if (!empty($response) && !isset($response['status'])) {
@@ -650,7 +645,7 @@ trait ApparelmagicHelper
             ['shopify_order_id' => $shopifyOrder['shopify_order_id']],
                     
                         [
-                            'order_id'=>$order['order_id']??null,
+                            'order_id'      =>$order['order_id']??null,
                             'customer_id'   => $order['customer_id'] ?? null,
                             'division_id'   => $order['division_id'] ?? null,
                             'warehouse_id'  => $order['warehouse_id'] ?? null,
@@ -661,6 +656,7 @@ trait ApparelmagicHelper
                             'source'        => $order['source'] ?? null,
                             'notes'         => $order['notes'] ?? null,
                             'name'          => $order['name'] ?? null,
+                            'amount_open' => $order['amount_open'] ?? 0,
                             'customer_po'=> $order['customer_po']??null,
                             'credit_status' =>$order['credit_status']??null,
                             'address_1'     => $order['address_1'] ?? null,
@@ -675,7 +671,20 @@ trait ApparelmagicHelper
                             'created_at'    => $order['creation_time'] ?? '',
                         ]
                     );
+                    if (!empty($orderDetail) && ($order['credit_status'] ?? '') != 'Pending') {
+                        if ($orderDetail->allocated == 0) {
+                            if ($this->allocateAmOrder($orderDetail)) {
+                                $orderDetail->allocated = 1;
+                                $orderDetail->save();
+                                Log::info("AM order allocated: " . $orderDetail->shopify_order_id);
+                            } else {
+                                Log::error("Failed to allocate AM order: " . $orderDetail->shopify_order_id);
+                            }
 
+                        } else {
+                            Log::info("AM order already allocated: " . $orderDetail->shopify_order_id);
+                        }
+                    }
                     if (!empty($order['order_items']) && is_array($order['order_items'])) {
                         Log::info("Order items");
                         foreach ($order['order_items'] as $item) {
@@ -685,10 +694,10 @@ trait ApparelmagicHelper
                                     'shopify_sku'=>$item['sku_alt'],
                                 ],
                                     [
-                                        'order_id'=> $item['order_id'] ?? null,
-                                        'sku_id' => $item['sku_id']??null,
-                                        'row_id' => $item['row_id']??null,
-                                        'date_due'=>$item['date_due']??null,
+                                        'order_id'     => $item['order_id'] ?? null,
+                                        'sku_id'       => $item['sku_id']??null,
+                                        'row_id'       => $item['row_id']??null,
+                                        'date_due'     =>$item['date_due']??null,
                                         'product_id'   => $item['product_id'] ?? null,
                                         'sku_alt'      => $item['sku_alt'] ?? null,
                                         'upc'          => $item['upc'] ?? null,
@@ -696,9 +705,10 @@ trait ApparelmagicHelper
                                         'description'  => $item['description'] ?? null,
                                         'size'         => $item['size'] ?? null,
                                         'qty'          => $item['qty'] ?? 0,
-                                        'qty_picked'=>$item['qty_picked']??0,
+                                        'qty_open'     => $item['qty_open'] ?? 0,
+                                        'qty_picked'   =>$item['qty_picked']??0,
                                         'qty_cancelled'=>$item['qty_cxl']??0, 
-                                        'qty_shipped'=>$item['qty_shipped']??0,
+                                        'qty_shipped'  =>$item['qty_shipped']??0,
                                         'unit_price'   => $item['unit_price'] ?? 0,
                                         'amount'       => $item['amount'] ?? 0,
                                         'is_taxable'   => $item['is_taxable'] ?? '0',
@@ -708,12 +718,11 @@ trait ApparelmagicHelper
                             }
                     }
                 }
-            }
+        }
         } catch (Exception $e) {
             Log::error('Exception while creating Apparelmagic order', ['error' => $e->getMessage()]);
         }
     }
-
     public function getOrdersByOrderId($orderId)
     {
         $settings = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
@@ -726,7 +735,7 @@ trait ApparelmagicHelper
             'token' => (string) $token,
               'parameters' => [
                     [
-                        'field' => 'style_number',
+                        'field' => 'customer_po',
                         'value' =>$orderId,
                         'operator' => '=',
                         'include_type' => 'AND'
@@ -734,8 +743,35 @@ trait ApparelmagicHelper
                 ]
                 ];
             $response=$this->apparelMagicApiRequest($url,$params);
-            Log::info("response".json_encode($response));
+            Log::info("response customer_po".$orderId.json_encode($response));
             return $response;
 
+    }
+
+    public function storeApparelOrders(){
+        
+    }
+    public function allocateOrder($orderDetail)
+    {
+        $items = $orderDetail->order_items()->where('qty_open', '>', 0)->get();
+        if ($items->isEmpty()) {
+            Log::info("No open items to allocate for order: " . $orderDetail->shopify_order_id);
+            return false;
+        }
+
+        $itemIds = $items->pluck('id')->toArray();
+        $request = ['item_ids' => $itemIds];
+
+        $allocate = $this->amPut('order_items/force_allocate', $request, 'Allocate order');
+
+        if (!empty($allocate->response)) {
+            $orderDetail->allocated = 1;
+            $orderDetail->save();
+            Log::info("AM order allocated: " . $orderDetail->shopify_order_id);
+            return true;
+        } else {
+            Log::error("Failed to allocate AM order: " . $orderDetail->shopify_order_id, ['response' => $allocate]);
+            return false;
+        }
     }
 }

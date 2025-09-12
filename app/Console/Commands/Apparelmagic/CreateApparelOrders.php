@@ -21,18 +21,18 @@ class CreateApparelOrders extends Command
         $orderId = $this->option('orderId');
 
         if ($orderId) {
-            // fetch single order
             $shopifyOrder = AmOrder::with('order_items')
                 ->where('shopify_order_id', $orderId)
                 ->first();
 
             if ($shopifyOrder) {
                 $response = $this->getOrdersByOrderId($shopifyOrder->shopify_order_id);
-
+                // CreateApparelmagicOrders::dispatch($shopifyOrder);
                 if (empty($response['response'])) {
+                     $this->info("create");
                     CreateApparelmagicOrders::dispatch($shopifyOrder);
                 } else {
-                    info("update");
+                    $this->info("update");
                     $item = $response['response'][0];
 
                     $orderDetail = AmOrder::updateOrCreate(
@@ -50,6 +50,8 @@ class CreateApparelOrders extends Command
                             'notes'          => $item['notes'] ?? null,
                             'name'           => $item['name'] ?? null,
                             'customer_po'    => $item['customer_po'] ?? null,
+                            'amount_open' => $item['amount_open'] ?? 0,
+                            'credit_status' =>$item['credit_status']??null,
                             'address_1'      => $item['address_1'] ?? null,
                             'address_2'      => $item['address_2'] ?? null,
                             'fulfillment_status' => $item['fulfillment_status'] ?? null,
@@ -67,8 +69,8 @@ class CreateApparelOrders extends Command
                         foreach ($item['order_items'] as $orderItem) {
                             $orderDetail->order_items()->updateOrCreate(
                                 [
-                                    'shopify_order_id' => $shopifyOrder->shopify_order_id,
-                                    'shopify_sku'      => $orderItem['sku_alt'] ?? null,
+                                    'shopify_order_id'     => $shopifyOrder['shopify_order_id'],
+                                    'shopify_sku'=>$orderItem['sku_alt'] 
                                 ],
                                 [
                                     'order_id'     => $orderItem['order_id'] ?? null,
@@ -83,6 +85,7 @@ class CreateApparelOrders extends Command
                                     'size'         => $orderItem['size'] ?? null,
                                     'qty'          => $orderItem['qty'] ?? 0,
                                     'qty_picked'   => $orderItem['qty_picked'] ?? 0,
+                                    'qty_open'     => $orderItem['qty_open'] ?? 0,
                                     'qty_cancelled'=> $orderItem['qty_cxl'] ?? 0,
                                     'qty_shipped'  => $orderItem['qty_shipped'] ?? 0,
                                     'unit_price'   => $orderItem['unit_price'] ?? 0,
@@ -120,7 +123,9 @@ class CreateApparelOrders extends Command
                             'source'         => $item['source'] ?? null,
                             'notes'          => $item['notes'] ?? null,
                             'name'           => $item['name'] ?? null,
+                            'credit_status' =>$item['credit_status']??null,
                             'customer_po'    => $item['customer_po'] ?? null,
+                            'amount_open' => $item['amount_open'] ?? 0,
                             'address_1'      => $item['address_1'] ?? null,
                             'address_2'      => $item['address_2'] ?? null,
                             'fulfillment_status' => $item['fulfillment_status'] ?? null,
@@ -154,6 +159,7 @@ class CreateApparelOrders extends Command
                                     'size'         => $orderItem['size'] ?? null,
                                     'qty'          => $orderItem['qty'] ?? 0,
                                     'qty_picked'   => $orderItem['qty_picked'] ?? 0,
+                                    'qty_open'     => $orderItem['qty_open'] ?? 0,
                                     'qty_cancelled'=> $orderItem['qty_cxl'] ?? 0,
                                     'qty_shipped'  => $orderItem['qty_shipped'] ?? 0,
                                     'unit_price'   => $orderItem['unit_price'] ?? 0,

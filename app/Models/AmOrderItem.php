@@ -36,7 +36,8 @@ class AmOrderItem extends Model
         'shopify_variant_id',
         'shopify_variant_title',
         'shopify_fulfillment_order_id',
-        'shopify_amount'
+        'shopify_amount',
+        'qty_open'
 
     ];
     public function order(){

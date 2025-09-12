@@ -57,6 +57,7 @@ class AmOrder extends Model
         'shopify_notes',
         'shopify_shipping_total',
         'shopify_created_at',
+        'amount_open'
     ];
 
     public function order_items(){
