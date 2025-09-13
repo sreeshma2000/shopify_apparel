@@ -18,5 +18,6 @@ Route::post('update-password', [App\Http\Controllers\AccountController::class,'u
 Route::resource('order', App\Http\Controllers\OrderController::class);
 Route::post('fetch-order', [App\Http\Controllers\OrderController::class, 'fetchOrders'])->name('fetch-order');
 Route::post('create-am-orders', [App\Http\Controllers\OrderController::class, 'createAmOrders'])->name('create-am-orders');
+Route::post('/orders/fulfil', [App\Http\Controllers\OrderController::class, 'fulfilfulOrder'])->name('order.fulfil');
 
 });

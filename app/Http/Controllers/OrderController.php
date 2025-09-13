@@ -6,6 +6,7 @@ use App\Jobs\Shopify\GetShopifyOrders;
 use App\Models\AmOrder;
 use App\Models\AmOrderItem;
 use App\Models\Setting;
+use App\Traits\Apparelmagic\ApparelmagicHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Yajra\DataTables\Facades\DataTables;
@@ -15,6 +16,7 @@ class OrderController extends Controller
     /**
      * Display a listing of the resource.
      */
+    use ApparelmagicHelper;
     public function index(Request $request)
     {
         if ($request->ajax()) {
@@ -72,11 +74,11 @@ class OrderController extends Controller
      * Display the specified resource.
      */
     public function show(string $id)
-{
-    $order = AmOrder::with('order_items')->findOrFail($id);
+    {
+        $order = AmOrder::with('order_items')->findOrFail($id);
 
-    return view('orders.detail', compact('order'));
-}
+        return view('orders.detail', compact('order'));
+    }
 
     /**
      * Show the form for editing the specified resource.
@@ -128,33 +130,59 @@ class OrderController extends Controller
     }
 
     public function createAmOrders(Request $request)
-{
-    $orderId = $request->order_id;
-    $sync_all  = $request->sync_all;
+    {
+        $orderId = $request->order_id;
+        $sync_all  = $request->sync_all;
 
-    if ($orderId) {
-        Artisan::call('create:apparel-orders', [
-            '--orderId' => $orderId
-        ]);
+        if ($orderId) {
+            Artisan::call('create:apparel-orders', [
+                '--orderId' => $orderId
+            ]);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => "Order {$orderId} processed for AM"
+            ]);
+        }
+
+        if ($sync_all == 1) {
+            Artisan::call('create:apparel-orders');
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'All orders processed for AM'
+            ]);
+        }
 
         return response()->json([
-            'status'  => 'success',
-            'message' => "Order {$orderId} processed for AM"
-        ]);
+            'status'  => 'error',
+            'message' => 'No orders ID or sync_all flag provided'
+        ], 400);
     }
 
-    if ($sync_all == 1) {
-        Artisan::call('create:apparel-orders');
+    public function fulfilfulOrder(Request $request)
+    {
+        try {
+            $request->validate([
+                'order_id' => 'required|integer',
+                'pick_ticket_id' => 'required|string'
+            ]);
 
-        return response()->json([
-            'status'  => 'success',
-            'message' => 'All orders processed for AM'
-        ]);
+            $order = AmOrder::findOrFail($request->order_id);
+
+            $result = $this->amShipments($request->pick_ticket_id);
+
+            return response()->json([
+                'status' => true,
+                'message' => "Fulfilment triggered for Pick Ticket ID {$request->pick_ticket_id}",
+                'result' => $result
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 
-    return response()->json([
-        'status'  => 'error',
-        'message' => 'No orders ID or sync_all flag provided'
-    ], 400);
-}
 }

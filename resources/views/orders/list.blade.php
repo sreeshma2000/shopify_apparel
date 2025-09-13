@@ -126,6 +126,38 @@
   </div>
 </div>
 
+<div class="modal fade" id="fulfilOrderModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h6 class="modal-title">Fulfil Order</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <form id="fulfilOrderForm">
+          <input type="hidden" id="order_id" name="order_id">
+          <div class="mb-3">
+            <label for="pick_ticket_id" class="form-label">Pick Ticket ID</label>
+            <input type="text" class="form-control" id="pick_ticket_id" name="pick_ticket_id" required>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirmFulfilBtn">
+          <span class="btn-text">Confirm</span>
+          <span class="spinner-border spinner-border-sm d-none ms-2"></span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
 @endsection
 @section('script')
 <script src="{{ url('libs/dataTable/datatables.min.js') }}"></script>
@@ -259,6 +291,59 @@ $("#fetch_orders_btn").on("click", function() {
       })
 
  });
+$(document).on("click", ".fulfil-order-btn", function () {
+    let orderId = $(this).data("id");
+    $("#order_id").val(orderId);
+    $("#pick_ticket_id").val(""); 
+    $("#fulfilOrderModal").modal("show");
+});
+
+$(document).on("click", "#confirmFulfilBtn", function () {
+    let btn = $(this);
+    let orderId = $("#order_id").val();
+    let pickTicketId = $("#pick_ticket_id").val();
+
+    if (!pickTicketId) {
+        Swal.fire({ icon: "warning", title: "Pick Ticket ID is required" });
+        return;
+    }
+
+    $.ajax({
+        url: "{{ route('order.fulfil') }}",
+        type: "POST",
+        data: {
+            order_id: orderId,
+            pick_ticket_id: pickTicketId,
+            _token: "{{ csrf_token() }}"
+        },
+        beforeSend: function () {
+            btn.prop("disabled", true);
+            btn.find(".btn-text").text("Processing...");
+            btn.find(".spinner-border").removeClass("d-none");
+        },
+        success: function (response) {
+            $("#fulfilOrderModal").modal("hide");
+            Swal.fire({
+                icon: "success",
+                title: "Order fulfilled",
+                text: response.message || "Fulfilment successful"
+            });
+            $("#ordertb").DataTable().ajax.reload();
+        },
+        error: function (xhr) {
+            Swal.fire({
+                icon: "error",
+                title: "Error",
+                text: xhr.responseJSON?.message || "Something went wrong"
+            });
+        },
+        complete: function () {
+            btn.prop("disabled", false);
+            btn.find(".btn-text").text("Confirm");
+            btn.find(".spinner-border").addClass("d-none");
+        }
+    });
+});
 
 
 </script>
