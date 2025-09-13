@@ -35,67 +35,8 @@ class CreateApparelOrders extends Command
                     $this->info("update");
                     $item = $response['response'][0];
 
-                    $orderDetail = AmOrder::updateOrCreate(
-                        ['shopify_order_id' => $shopifyOrder->shopify_order_id],
-                        [
-                            'order_id'       => $item['order_id'] ?? null,
-                            'customer_id'    => $item['customer_id'] ?? null,
-                            'division_id'    => $item['division_id'] ?? null,
-                            'warehouse_id'   => $item['warehouse_id'] ?? null,
-                            'currency_id'    => $item['currency_id'] ?? null,
-                            'ar_acct'        => $item['ar_acct'] ?? null,
-                            'date'           => !empty($item['date']) ? Carbon::parse($item['date'])->format('Y-m-d') : null,
-                            'date_start'     => !empty($item['date_start']) ? Carbon::parse($item['date_start'])->format('Y-m-d') : null,
-                            'source'         => $item['source'] ?? null,
-                            'notes'          => $item['notes'] ?? null,
-                            'name'           => $item['name'] ?? null,
-                            'customer_po'    => $item['customer_po'] ?? null,
-                            'amount_open' => $item['amount_open'] ?? 0,
-                            'credit_status' =>$item['credit_status']??null,
-                            'address_1'      => $item['address_1'] ?? null,
-                            'address_2'      => $item['address_2'] ?? null,
-                            'fulfillment_status' => $item['fulfillment_status'] ?? null,
-                            'city'           => $item['city'] ?? null,
-                            'postal_code'    => $item['postal_code'] ?? null,
-                            'country'        => $item['country'] ?? null,
-                            'state'          => $item['state'] ?? null,
-                            'phone'          => $item['phone'] ?? null,
-                            'email'          => $item['email'] ?? null,
-                            'created_at'     => $item['creation_time'] ?? now(),
-                        ]
-                    );
+                    $orderDetail = $this->storeAmOrder($shopifyOrder, $item);
 
-                    if (!empty($item['order_items']) && is_array($item['order_items'])) {
-                        foreach ($item['order_items'] as $orderItem) {
-                            $orderDetail->order_items()->updateOrCreate(
-                                [
-                                    'shopify_order_id'     => $shopifyOrder['shopify_order_id'],
-                                    'shopify_sku'=>$orderItem['sku_alt'] 
-                                ],
-                                [
-                                    'order_id'     => $orderItem['order_id'] ?? null,
-                                    'sku_id'       => $orderItem['sku_id'] ?? null,
-                                    'row_id'       => $orderItem['row_id'] ?? null,
-                                    'date_due'     => $orderItem['date_due'] ?? null,
-                                    'product_id'   => $orderItem['product_id'] ?? null,
-                                    'sku_alt'      => $orderItem['sku_alt'] ?? null,
-                                    'upc'          => $orderItem['upc'] ?? null,
-                                    'style_number' => $orderItem['style_number'] ?? null,
-                                    'description'  => $orderItem['description'] ?? null,
-                                    'size'         => $orderItem['size'] ?? null,
-                                    'qty'          => $orderItem['qty'] ?? 0,
-                                    'qty_picked'   => $orderItem['qty_picked'] ?? 0,
-                                    'qty_open'     => $orderItem['qty_open'] ?? 0,
-                                    'qty_cancelled'=> $orderItem['qty_cxl'] ?? 0,
-                                    'qty_shipped'  => $orderItem['qty_shipped'] ?? 0,
-                                    'unit_price'   => $orderItem['unit_price'] ?? 0,
-                                    'amount'       => $orderItem['amount'] ?? 0,
-                                    'is_taxable'   => $orderItem['is_taxable'] ?? '0',
-                                    'warehouse_id' => $orderItem['warehouse_id'] ?? $item['warehouse_id'] ?? null,
-                                ]
-                            );
-                        }
-                    }
                     if (!empty($orderDetail) && ($order['credit_status'] ?? '') != 'Pending') {
                         if ($orderDetail->allocated == 0) {
                             $response=$this->getOrdersByOrderId($orderDetail->shopify_order_id);
@@ -128,68 +69,8 @@ class CreateApparelOrders extends Command
                     CreateApparelmagicOrders::dispatch($shopifyOrder);
                 } else {
                     $item = $response['response'][0];
+                    $orderDetail = $this->storeAmOrder($shopifyOrder, $item);
 
-                    $orderDetail = AmOrder::updateOrCreate(
-                        ['shopify_order_id' => $shopifyOrder->shopify_order_id],
-                        [
-                            'order_id'       => $item['order_id'] ?? null,
-                            'customer_id'    => $item['customer_id'] ?? null,
-                            'division_id'    => $item['division_id'] ?? null,
-                            'warehouse_id'   => $item['warehouse_id'] ?? null,
-                            'currency_id'    => $item['currency_id'] ?? null,
-                            'ar_acct'        => $item['ar_acct'] ?? null,
-                            'date'           => !empty($item['date']) ? Carbon::parse($item['date'])->format('Y-m-d') : null,
-                            'date_start'     => !empty($item['date_start']) ? Carbon::parse($item['date_start'])->format('Y-m-d') : null,
-                            'source'         => $item['source'] ?? null,
-                            'notes'          => $item['notes'] ?? null,
-                            'name'           => $item['name'] ?? null,
-                            'credit_status' =>$item['credit_status']??null,
-                            'customer_po'    => $item['customer_po'] ?? null,
-                            'amount_open' => $item['amount_open'] ?? 0,
-                            'address_1'      => $item['address_1'] ?? null,
-                            'address_2'      => $item['address_2'] ?? null,
-                            'fulfillment_status' => $item['fulfillment_status'] ?? null,
-                            'city'           => $item['city'] ?? null,
-                            'postal_code'    => $item['postal_code'] ?? null,
-                            'country'        => $item['country'] ?? null,
-                            'state'          => $item['state'] ?? null,
-                            'phone'          => $item['phone'] ?? null,
-                            'email'          => $item['email'] ?? null,
-                            'created_at'     => $item['creation_time'] ?? now(),
-                        ]
-                    );
-
-                    if (!empty($item['order_items']) && is_array($item['order_items'])) {
-                        foreach ($item['order_items'] as $orderItem) {
-                            $orderDetail->order_items()->updateOrCreate(
-                                [
-                                    'shopify_order_id' => $shopifyOrder->shopify_order_id,
-                                    'shopify_sku'      => $orderItem['sku_alt'] ?? null,
-                                ],
-                                [
-                                    'order_id'     => $orderItem['order_id'] ?? null,
-                                    'sku_id'       => $orderItem['sku_id'] ?? null,
-                                    'row_id'       => $orderItem['row_id'] ?? null,
-                                    'date_due'     => $orderItem['date_due'] ?? null,
-                                    'product_id'   => $orderItem['product_id'] ?? null,
-                                    'sku_alt'      => $orderItem['sku_alt'] ?? null,
-                                    'upc'          => $orderItem['upc'] ?? null,
-                                    'style_number' => $orderItem['style_number'] ?? null,
-                                    'description'  => $orderItem['description'] ?? null,
-                                    'size'         => $orderItem['size'] ?? null,
-                                    'qty'          => $orderItem['qty'] ?? 0,
-                                    'qty_picked'   => $orderItem['qty_picked'] ?? 0,
-                                    'qty_open'     => $orderItem['qty_open'] ?? 0,
-                                    'qty_cancelled'=> $orderItem['qty_cxl'] ?? 0,
-                                    'qty_shipped'  => $orderItem['qty_shipped'] ?? 0,
-                                    'unit_price'   => $orderItem['unit_price'] ?? 0,
-                                    'amount'       => $orderItem['amount'] ?? 0,
-                                    'is_taxable'   => $orderItem['is_taxable'] ?? '0',
-                                    'warehouse_id' => $orderItem['warehouse_id'] ?? $item['warehouse_id'] ?? null,
-                                ]
-                            );
-                        }
-                    }
                 }
             }
         }

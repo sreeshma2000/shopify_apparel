@@ -564,8 +564,6 @@ trait ApparelmagicHelper
     public function createAmOrders($shopifyOrder)
     {
         try {
-            // Log::info("orderitems in apparel " . json_encode($shopifyOrder));
-
             $settings = Setting::where('type', 'apparelmagic')->where('status', 1)->get();
             $this->apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
             $baseUrl = $this->apparelUrl . '/orders';
@@ -576,12 +574,11 @@ trait ApparelmagicHelper
             $warehouse_id = $settings->firstWhere('code', 'apparelmagic_location')->value;
             $customer_id  = $settings->firstWhere('code', 'apparelmagic_customer')->value;
             $account_id   = $settings->firstWhere('code', 'apparelmagic_account')->value;
-            // dd($account_id);
 
             $header = [];
-            $header['customer_id'] = $customer_id;
-            $header['division_id'] = $division_id;
-            $header['ar_acct']     = $account_id;
+            $header['customer_id']  = $customer_id;
+            $header['division_id']  = $division_id;
+            $header['ar_acct']      = $account_id;
             $header['warehouse_id'] = $warehouse_id;
             $header['currency_id']  = '1000';
 
@@ -589,144 +586,168 @@ trait ApparelmagicHelper
             $formateddate = DateTime::createFromFormat('Y-m-d', $datecreated);
             $datecreated  = $formateddate ? $formateddate->format('m/d/Y') : date('m/d/Y');
 
-            $header['date']       = $datecreated;
-            $header['customer_po'] = $shopifyOrder['shopify_order_name']??'';
-            $header['date_start'] = $datecreated;
-            $header['source']     = 'Shopify Wholesale';
-            $header['notes']      = $shopifyOrder['shopify_notes'] ?? '';
-            $header['amount']     = (float) $shopifyOrder['shopify_shipping_total'];
-            $header['name']       = trim(($shopifyOrder['shopify_customer_firstname'] ?? '') . ' ' . ($shopifyOrder['shopify_customer_lastname'] ?? ''));
+            $header['date']        = $datecreated;
+            $header['customer_po'] = $shopifyOrder['shopify_order_id'] ?? '';
+            $header['date_start']  = $datecreated;
+            $header['source']      = 'Shopify Wholesale';
+            $header['notes']       = $shopifyOrder['shopify_notes'] ?? '';
+            $header['amount']      = (float) $shopifyOrder['shopify_shipping_total'];
+            $header['name']        = trim(($shopifyOrder['shopify_customer_firstname'] ?? '') . ' ' . ($shopifyOrder['shopify_customer_lastname'] ?? ''));
 
-            $header['address_1']  = $shopifyOrder['shopify_shipping_address1'] ?? '';
-            $header['address_2']  = $shopifyOrder['shopify_shipping_address2'] ?? '';
-            $header['city']       = $shopifyOrder['shopify_shipping_city'] ?? '';
-            $header['postal_code']= $shopifyOrder['shopify_shipping_zip'] ?? '';
-            $header['country']    = $shopifyOrder['shopify_shipping_country'] ?? '';
-            $header['state']      = $shopifyOrder['shopify_shipping_provincecode'] ?? '';
-            $header['phone']      = $shopifyOrder['shopify_shipping_phone'] ?? '';
-            $header['email']      = $shopifyOrder['shopify_email'] ?? '';
+            $header['address_1']   = $shopifyOrder['shopify_shipping_address1'] ?? '';
+            $header['address_2']   = $shopifyOrder['shopify_shipping_address2'] ?? '';
+            $header['city']        = $shopifyOrder['shopify_shipping_city'] ?? '';
+            $header['postal_code'] = $shopifyOrder['shopify_shipping_zip'] ?? '';
+            $header['country']     = $shopifyOrder['shopify_shipping_country'] ?? '';
+            $header['state']       = $shopifyOrder['shopify_shipping_provincecode'] ?? '';
+            $header['phone']       = $shopifyOrder['shopify_shipping_phone'] ?? '';
+            $header['email']       = $shopifyOrder['shopify_email'] ?? '';
 
-            $items = [];
+            $items      = [];
             $orderItems = $shopifyOrder->order_items ?? [];
-            log::info('orderItems: '.json_encode($orderItems));
+            Log::info('orderItems: ' . json_encode($orderItems));
             foreach ($orderItems as $item) {
                 $variant = ProductVariant::where('shopify_sku', $item['shopify_sku'])->whereNotNull('product_id')->first();
-               Log::info("variant".json_encode($variant));
+                Log::info("variant" . json_encode($variant));
                 if (!$variant) {
-                    continue; 
+                    continue;
                 }
-                $quantity = $item->shopify_quantity; 
+                $quantity  = $item->shopify_quantity;
                 $lineTotal = (float) $item->shopify_amount;
                 $unitPrice = $quantity > 0 ? ($lineTotal / $quantity) : 0;
 
                 $items[] = [
-                    'sku'        => $variant->sku_id,   
-                    'qty' => (string) $quantity,
+                    'sku'        => $variant->sku_id,
+                    'qty'        => (string) $quantity,
                     'unit_price' => (string) $unitPrice,
                     'amount'     => (string) $lineTotal,
                 ];
             }
-           // Log::info("items in apparel " . json_encode($items));
+
             $params = [
                 'time'   => (string) $time,
                 'token'  => (string) $token,
                 'header' => $header,
                 'items'  => $items,
             ];
-            Log::info("params".json_encode($params));
-            
+            Log::info("params" . json_encode($params));
+
             $response = $this->apparelMagicApiPostRequest($baseUrl, $params);
             Log::info("am-order" . json_encode($response));
+
             if (!empty($response) && !isset($response['status'])) {
                 $amOrders = $response['response'];
-                info("am order response".json_encode($amOrders));
+                info("am order response" . json_encode($amOrders));
                 foreach ($amOrders as $order) {
-                    $orderDetail=AmOrder::updateOrCreate(
-            ['shopify_order_id' => $shopifyOrder['shopify_order_id']],
-                    
-                        [
-                            'order_id'      =>$order['order_id']??null,
-                            'customer_id'   => $order['customer_id'] ?? null,
-                            'division_id'   => $order['division_id'] ?? null,
-                            'warehouse_id'  => $order['warehouse_id'] ?? null,
-                            'currency_id'   => $order['currency_id'] ?? null,
-                            'ar_acct'       => $order['ar_acct'] ?? null,
-                            'date'          => isset($order['date']) ? Carbon::parse($order['date'])->format('Y-m-d') : null,
-                            'date_start'    => isset($order['date_start']) ?Carbon::parse($order['date_start'])->format('Y-m-d') : null,
-                            'source'        => $order['source'] ?? null,
-                            'notes'         => $order['notes'] ?? null,
-                            'name'          => $order['name'] ?? null,
-                            'amount_open' => $order['amount_open'] ?? 0,
-                            'customer_po'=> $order['customer_po']??null,
-                            'credit_status' =>$order['credit_status']??null,
-                            'address_1'     => $order['address_1'] ?? null,
-                            'address_2'     => $order['address_2'] ?? null,
-                            'fulfillment_status' =>$order['fulfillment_status'] ?? null,
-                            'city'          => $order['city'] ?? null,
-                            'postal_code'   => $order['postal_code'] ?? null,
-                            'country'       => $order['country'] ?? null,
-                            'state'         => $order['state'] ?? null,
-                            'phone'         => $order['phone'] ?? null,
-                            'email'         => $order['email'] ?? null,
-                            'created_at'    => $order['creation_time'] ?? '',
-                        ]
-                    );
-                    if (!empty($order['order_items']) && is_array($order['order_items'])) {
-                        Log::info("Order items");
-                        foreach ($order['order_items'] as $item) {
-                                $orderDetail->order_items()->updateOrCreate(
-                                    [
-                                    'shopify_order_id'     => $shopifyOrder['shopify_order_id'],
-                                    'shopify_sku'=>$item['sku_alt'],
-                                ],
-                                    [
-                                        'order_id'     => $item['order_id'] ?? null,
-                                        'sku_id'       => $item['sku_id']??null,
-                                        'row_id'       => $item['row_id']??null,
-                                        'date_due'     =>$item['date_due']??null,
-                                        'product_id'   => $item['product_id'] ?? null,
-                                        'sku_alt'      => $item['sku_alt'] ?? null,
-                                        'upc'          => $item['upc'] ?? null,
-                                        'style_number' => $item['style_number'] ?? null,
-                                        'description'  => $item['description'] ?? null,
-                                        'size'         => $item['size'] ?? null,
-                                        'qty'          => $item['qty'] ?? 0,
-                                        'qty_open'     => $item['qty_open'] ?? 0,
-                                        'qty_picked'   =>$item['qty_picked']??0,
-                                        'qty_cancelled'=>$item['qty_cxl']??0, 
-                                        'qty_shipped'  =>$item['qty_shipped']??0,
-                                        'unit_price'   => $item['unit_price'] ?? 0,
-                                        'amount'       => $item['amount'] ?? 0,
-                                        'is_taxable'   => $item['is_taxable'] ?? '0',
-                                        'warehouse_id' => $item['warehouse_id'] ?? $order['warehouse_id'] ?? null,
-                                    ]
-                                );
-                            }
-                    }
+                    $orderDetail = $this->storeAmOrder($shopifyOrder, $order);
                     if (!empty($orderDetail) && ($order['credit_status'] ?? '') != 'Pending') {
                         if ($orderDetail->allocated == 0) {
-                            $amOrder=$this->getOrdersByOrderId($orderDetail->shopify_order_id);
-                            $amItems=collect($amOrder->order_items);
-                            $items = $amItems->where('qty_open', '>', 0);
+                            $amOrder = $this->getOrdersByOrderId($orderDetail->shopify_order_id);
+                            $amItems = collect($amOrder->order_items);
+                            $items   = $amItems->where('qty_open', '>', 0);
                             $itemIds = $items->pluck('id')->toArray();
-                            if ($this->allocateAmOrder($orderDetail,$itemIds)) {
+                            if ($this->allocateAmOrder($orderDetail, $itemIds)) {
                                 $orderDetail->allocated = 1;
                                 $orderDetail->save();
                                 Log::info("AM order allocated: " . $orderDetail->shopify_order_id);
                             } else {
                                 Log::error("Failed to allocate AM order: " . $orderDetail->shopify_order_id);
                             }
-
                         } else {
                             Log::info("AM order already allocated: " . $orderDetail->shopify_order_id);
                         }
+
+                        if ($orderDetail->allocated == 1) {
+                            if (empty($orderDetail->pick_ticket_id)) {
+                                $pickticket = $this->createAmPickTicket($orderDetail->order_id);
+                                if (!empty($pickticket) && isset($pickticket->pick_ticket_id)) {
+                                    $orderDetail->pick_ticket_id = $pickticket->pick_ticket_id;
+                                    $orderDetail->save();
+                                    Log::info("AM pick ticket created: " . $pickticket->pick_ticket_id);
+                                } else {
+                                    Log::warning("Pick ticket creation failed for order: " . $orderDetail->shopify_order_id);
+                                }
+                            } else {
+                                $pickticket = $this->getAmPickTicket($orderDetail->am_pick_ticket_id);
+                                Log::info("AM pick ticket already exists: " . $pickticket->pick_ticket_id);
+                            }
+                        }
                     }
                 }
-        }
+            }
         } catch (Exception $e) {
             Log::error('Exception while creating Apparelmagic order', ['error' => $e->getMessage()]);
         }
     }
+
+    public function storeAmOrder($shopifyOrder, $order)
+    {
+        $orderDetail = AmOrder::updateOrCreate(
+            ['shopify_order_id' => $shopifyOrder['shopify_order_id']],
+            [
+                'am_order_id'          => $order['order_id'] ?? null,
+                'customer_id'       => $order['customer_id'] ?? null,
+                'division_id'       => $order['division_id'] ?? null,
+                'warehouse_id'      => $order['warehouse_id'] ?? null,
+                'currency_id'       => $order['currency_id'] ?? null,
+                'ar_acct'           => $order['ar_acct'] ?? null,
+                'date'              => isset($order['date']) ? Carbon::parse($order['date'])->format('Y-m-d') : null,
+                'date_start'        => isset($order['date_start']) ? Carbon::parse($order['date_start'])->format('Y-m-d') : null,
+                'source'            => $order['source'] ?? null,
+                'notes'             => $order['notes'] ?? null,
+                'name'              => $order['name'] ?? null,
+                'amount_open'       => $order['amount_open'] ?? 0,
+                'customer_po'       => $order['customer_po'] ?? null,
+                'credit_status'     => $order['credit_status'] ?? null,
+                'address_1'         => $order['address_1'] ?? null,
+                'address_2'         => $order['address_2'] ?? null,
+                'fulfillment_status'=> $order['fulfillment_status'] ?? null,
+                'city'              => $order['city'] ?? null,
+                'postal_code'       => $order['postal_code'] ?? null,
+                'country'           => $order['country'] ?? null,
+                'state'             => $order['state'] ?? null,
+                'phone'             => $order['phone'] ?? null,
+                'email'             => $order['email'] ?? null,
+                'created_at'        => $order['creation_time'] ?? '',
+            ]
+        );
+
+        if (!empty($order['order_items']) && is_array($order['order_items'])) {
+            foreach ($order['order_items'] as $item) {
+                $orderDetail->order_items()->updateOrCreate(
+                    [
+                        'shopify_order_id' => $shopifyOrder['shopify_order_id'],
+                        'shopify_sku'      => $item['sku_alt'],
+                    ],
+                    [
+                        'am_order_id'      => $item['order_id'] ?? null,
+                        'am_order_item_id' => $item['id']??null,
+                        'sku_id'        => $item['sku_id'] ?? null,
+                        'row_id'        => $item['row_id'] ?? null,
+                        'date_due'      => $item['date_due'] ?? null,
+                        'product_id'    => $item['product_id'] ?? null,
+                        'sku_alt'       => $item['sku_alt'] ?? null,
+                        'upc'           => $item['upc'] ?? null,
+                        'style_number'  => $item['style_number'] ?? null,
+                        'description'   => $item['description'] ?? null,
+                        'size'          => $item['size'] ?? null,
+                        'qty'           => $item['qty'] ?? 0,
+                        'qty_open'      => $item['qty_open'] ?? 0,
+                        'qty_picked'    => $item['qty_picked'] ?? 0,
+                        'qty_cancelled' => $item['qty_cxl'] ?? 0,
+                        'qty_shipped'   => $item['qty_shipped'] ?? 0,
+                        'unit_price'    => $item['unit_price'] ?? 0,
+                        'amount'        => $item['amount'] ?? 0,
+                        'is_taxable'    => $item['is_taxable'] ?? '0',
+                        'warehouse_id'  => $item['warehouse_id'] ?? $order['warehouse_id'] ?? null,
+                    ]
+                );
+            }
+        }
+
+        return $orderDetail;
+    }
+
     public function getOrdersByOrderId($orderId)
     {
         $settings = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
@@ -752,38 +773,81 @@ trait ApparelmagicHelper
 
     }
 
-    public function storeApparelOrders(){
-        
+    public function allocateAmOrder($orderDetail, $itemIds)
+    {
+        Log::info("itemsIds: " . json_encode($itemIds));
+        $settings = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
+        $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+        $token = $settings->firstWhere('code', 'apparelmagic_token')->value;
+        $time = time();
+        $url = $apparelUrl . '/order_items/force_allocate';
+
+        $params = [
+            'time' => (string) $time,
+            'token' => (string) $token,
+            'item_ids' => $itemIds
+        ];
+        // Log::info("params".json_encode($params));
+        // Log::info($url);
+        $allocate = $this->apparelMagicApiPutRequest($url, $params);
+    Log::info("response".json_encode($allocate));
+        if (!empty($allocate['response'])) {
+            $orderDetail->allocated = 1;
+            $orderDetail->save();
+            Log::info("AM order allocated: " . $orderDetail->shopify_order_id);
+            return true;
+        } else {
+            Log::error("Failed to allocate AM order: " . $orderDetail->shopify_order_id, ['response' => $allocate]);
+            return false;
+        }
     }
-public function allocateAmOrder($orderDetail, $itemIds)
-{
-    Log::info("itemsIds: " . json_encode($itemIds));
-    $settings = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
-    $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
-    $token = $settings->firstWhere('code', 'apparelmagic_token')->value;
-    $time = time();
-    $url = $apparelUrl . '/order_items/force_allocate';
 
-    $params = [
-        'time' => (string) $time,
-        'token' => (string) $token,
-        'item_ids' => $itemIds
-    ];
-    // Log::info("params".json_encode($params));
-    // Log::info($url);
-    $allocate = $this->apparelMagicApiPutRequest($url, $params);
-Log::info("response".json_encode($allocate));
-    if (!empty($allocate['response'])) {
-        $orderDetail->allocated = 1;
-        $orderDetail->save();
-        Log::info("AM order allocated: " . $orderDetail->shopify_order_id);
-        return true;
-    } else {
-        Log::error("Failed to allocate AM order: " . $orderDetail->shopify_order_id, ['response' => $allocate]);
-        return false;
+    public function createAmPickTicket($orderId)
+    {
+        try {
+            Log::info("Creating pick ticket for Order ID: " . $orderId);
+
+            $settings   = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
+            $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+            $token      = $settings->firstWhere('code', 'apparelmagic_token')->value;
+
+            $time = time();
+
+            $url = $apparelUrl . "/orders/{$orderId}/pick";
+
+            $params = [
+                'time'  => (string) $time,
+                'token' => (string) $token,
+            ];
+
+            $response = $this->amPut($url, $params, 'Create Pick Ticket');
+            Log::info("Pick Ticket Create Response for Order {$orderId}: " . json_encode($response));
+
+            sleep(5);
+            $parameters = [
+                [
+                    'field'        => 'order_id',
+                    'operator'     => '=',
+                    'include_type' => 'AND',
+                    'value'        => $orderId,
+                ]
+            ];
+
+            $pickResponse = $this->amGet('pick_tickets', $parameters, 'Get Pick Tickets');
+
+            if (!empty($pickResponse->response) && is_array($pickResponse->response)) {
+                $pickticket = end($pickResponse->response); 
+                Log::info("Pick ticket created successfully for Order {$orderId}: " . json_encode($pickticket));
+                return (object) $pickticket;
+            }
+
+            Log::warning("Pick ticket not found after creation for Order {$orderId}");
+            return null;
+
+        } catch (Exception $e) {
+            Log::error("Error while creating pick ticket for Order {$orderId}: " . $e->getMessage());
+            return null;
+        }
     }
-}
-
-
 
 }

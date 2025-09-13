@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('am_orders', function (Blueprint $table) {
             $table->id();
-            $table->string('order_id')->nullable();
+            $table->string('am_order_id')->nullable();
             $table->unsignedBigInteger('warehouse_id')->nullable();
             $table->unsignedBigInteger('customer_id')->nullable();
             $table->unsignedBigInteger('division_id')->nullable();

@@ -74,7 +74,8 @@
                             <th>Customer Email</th>
                             <th>Customer Phone</th>
                             <th>Amount</th>
-                            <th>Fulfillment status</th>                            
+                            <th>Fulfillment status</th> 
+                            <th>Action</th>                           
                         </tr>
                     </thead>
                 </table>
@@ -150,7 +151,9 @@ var $ordertable = $('#ordertb').DataTable({
         { data: 'email', name: 'email' },
         { data: 'phone', name: 'phone' },
         { data:'amount',name:'amount'},
-        { data:'fulfillment_status',name:'fulfillment_status'}
+        { data:'fulfillment_status',name:'fulfillment_status'},
+        { data:'action',name:'action'}
+
     ],
 
     columnDefs: [{

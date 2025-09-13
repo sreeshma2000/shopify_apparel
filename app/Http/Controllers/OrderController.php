@@ -16,17 +16,37 @@ class OrderController extends Controller
      * Display a listing of the resource.
      */
     public function index(Request $request)
-    {
-         if ($request->ajax()) {
-            $query = AmOrder::select('order_id','shopify_order_id','name','customer_po','email','phone','amount','fulfillment_status')
-            ->orderBy('id', 'asc');
+{
+    if ($request->ajax()) {
+        $query = AmOrder::select(
+            'id',
+            'order_id',
+            'shopify_order_id',
+            'name',
+            'customer_po',
+            'email',
+            'phone',
+            'amount',
+            'fulfillment_status'
+        )->orderBy('id', 'asc');
 
-            return DataTables::of($query) 
+        return DataTables::of($query)
+            ->addColumn('action', function ($order) {
+                return '
+                    <div class="d-flex">
+                        <a href="' . route('order.show', $order->id) . '" 
+                            class="btn btn-sm btn-clean btn-icon text-end" 
+                            title="Show">
+                            <i class="fa fa-eye"></i>
+                        </a>
+                    </div>';
+            })
+            ->rawColumns(['action'])
             ->make(true);
-        }
-
-        return view('orders.list');
     }
+
+    return view('orders.list');
+}
 
     /**
      * Show the form for creating a new resource.
@@ -48,9 +68,11 @@ class OrderController extends Controller
      * Display the specified resource.
      */
     public function show(string $id)
-    {
-        //
-    }
+{
+    $order = AmOrder::with('order_items')->findOrFail($id);
+
+    return view('orders.detail', compact('order'));
+}
 
     /**
      * Show the form for editing the specified resource.
