@@ -961,13 +961,11 @@ trait ApparelmagicHelper
             $params = [
                 'time'  => (string) $time,
                 'token' => (string) $token,
-                'parameters' => [
-                    'boxes'  => $original_boxes,
-                    'header' => [
-                        'customer_id'              => $pickticket['customer_id'] ?? null,
-                        'selected_pick_ticket_ids' => [$pickticket['pick_ticket_id']],
-                        'warehouse_id'             => $warehouseId,
-                    ],
+                'boxes'  => $original_boxes,
+                'header' => [
+                    'customer_id'              => $pickticket['customer_id'] ?? null,
+                    'selected_pick_ticket_ids' => [$pickticket['pick_ticket_id']],
+                    'warehouse_id'             => $warehouseId,
                 ]
             ];
 
