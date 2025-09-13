@@ -16,37 +16,41 @@ class OrderController extends Controller
      * Display a listing of the resource.
      */
     public function index(Request $request)
-{
-    if ($request->ajax()) {
-        $query = AmOrder::select(
-            'id',
-            'order_id',
-            'shopify_order_id',
-            'name',
-            'customer_po',
-            'email',
-            'phone',
-            'amount',
-            'fulfillment_status'
-        )->orderBy('id', 'asc');
+    {
+        if ($request->ajax()) {
+            $query = AmOrder::select(
+                'id',
+                'am_order_id',
+                'shopify_order_id',
+                'name',
+                'customer_po',
+                'email',
+                'amount',
+                'shopify_fulfillment_status',
+                'fulfillment_status'
+            )->orderBy('id', 'asc');
 
-        return DataTables::of($query)
-            ->addColumn('action', function ($order) {
-                return '
-                    <div class="d-flex">
-                        <a href="' . route('order.show', $order->id) . '" 
-                            class="btn btn-sm btn-clean btn-icon text-end" 
-                            title="Show">
-                            <i class="fa fa-eye"></i>
-                        </a>
-                    </div>';
-            })
-            ->rawColumns(['action'])
-            ->make(true);
+            return DataTables::of($query)
+                ->addColumn('action', function ($order) {
+                    return '
+                        <div class="d-flex">
+                         <button class="btn btn-sm btn-success fulfil-order-btn" 
+                                data-id="' . $order->id . '">
+                                Fulfil
+                            </button>
+                            <a href="' . route('order.show', $order->id) . '" 
+                                class="btn btn-sm btn-clean btn-icon text-end" 
+                                title="Show">
+                                <i class="fa fa-eye"></i>
+                            </a>
+                        </div>';
+                })
+                ->rawColumns(['action'])
+                ->make(true);
+        }
+
+        return view('orders.list');
     }
-
-    return view('orders.list');
-}
 
     /**
      * Show the form for creating a new resource.

@@ -72,9 +72,9 @@
                             <th>Customer Name</th>
                             <th>Customer Po</th>
                             <th>Customer Email</th>
-                            <th>Customer Phone</th>
                             <th>Amount</th>
-                            <th>Fulfillment status</th> 
+                            <th>Shopify Fulfillment status</th> 
+                            <th>Apparel Fulfillment status</th>
                             <th>Action</th>                           
                         </tr>
                     </thead>
@@ -144,13 +144,13 @@ var $ordertable = $('#ordertb').DataTable({
         }
     },
     columns: [
-        { data: 'order_id', name: 'order_id' },
+        { data: 'am_order_id', name: 'am_order_id' },
         { data: 'shopify_order_id', name: 'shopify_order_id' },
         { data: 'name', name: 'name' },
         { data: 'customer_po', name: 'customer_po' },
         { data: 'email', name: 'email' },
-        { data: 'phone', name: 'phone' },
         { data:'amount',name:'amount'},
+        { data:'shopify_fulfillment_status',name:'shopify_fulfillment_status'},
         { data:'fulfillment_status',name:'fulfillment_status'},
         { data:'action',name:'action'}
 

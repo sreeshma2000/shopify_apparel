@@ -41,7 +41,7 @@ class CreateApparelOrders extends Command
                         if ($orderDetail->allocated == 0) {
                             $response=$this->getOrdersByOrderId($orderDetail->shopify_order_id);
                             $amOrder = $response['response'][0];
-// dd($amOrder['order_items']);
+                            // dd($amOrder['order_items']);
                             $amItems=collect($amOrder['order_items']);
                             $items = $amItems->where('qty_open', '>', 0);
                             $itemIds = $items->pluck('id')->toArray();
@@ -55,6 +55,34 @@ class CreateApparelOrders extends Command
 
                         } else {
                             Log::info("AM order already allocated: " . $orderDetail->shopify_order_id);
+                        }
+
+                        if ($orderDetail->allocated == 1) {
+                            if (empty($orderDetail->pick_ticket_id)) {
+                                $pickticket = $this->createAmPickTicket($orderDetail->am_order_id);
+                                if (!empty($pickticket) && isset($pickticket['pick_ticket_id'])) {
+                                    $orderDetail->pick_ticket_id = $pickticket['pick_ticket_id'];
+                                    $orderDetail->save();
+                                    Log::info("AM pick ticket created: " . $pickticket['pick_ticket_id']);
+                                } else {
+                                    Log::warning("Pick ticket creation failed for order: " . $orderDetail->shopify_order_id);
+                                }
+
+                            } else {
+                                $pickticket = $this->getAmPickTicket($orderDetail->pick_ticket_id);
+
+                                $pickTicketId = is_object($pickticket) 
+                                    ? $pickticket->pick_ticket_id 
+                                    : ($pickticket['pick_ticket_id'] ?? null);
+
+                                if ($pickTicketId) {
+                                    Log::info("AM pick ticket already exists: " . $pickTicketId);
+                                } else {
+                                    Log::warning("Failed to fetch existing pick ticket for order: " . $orderDetail->shopify_order_id);
+                                    Log::debug("Pick ticket raw response: " . json_encode($pickticket));
+                                }
+                            }
+
                         }
                     }
                 }

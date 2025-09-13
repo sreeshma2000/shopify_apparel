@@ -612,12 +612,12 @@ trait ApparelmagicHelper
                 if (!$variant) {
                     continue;
                 }
-                $quantity  = $item->shopify_quantity;
+                $quantity  = $item->shopify_quantity>0?$item->shopify_quantity:0;
                 $lineTotal = (float) $item->shopify_amount;
-                $unitPrice = $quantity > 0 ? ($lineTotal / $quantity) : 0;
+                $unitPrice = $quantity > 0 ? ($lineTotal * $quantity) : 0;
 
                 $items[] = [
-                    'sku'        => $variant->sku_id,
+                    'sku_id'        => $variant->sku_id,
                     'qty'        => (string) $quantity,
                     'unit_price' => (string) $unitPrice,
                     'amount'     => (string) $lineTotal,
@@ -659,16 +659,16 @@ trait ApparelmagicHelper
 
                         if ($orderDetail->allocated == 1) {
                             if (empty($orderDetail->pick_ticket_id)) {
-                                $pickticket = $this->createAmPickTicket($orderDetail->order_id);
+                                $pickticket = $this->createAmPickTicket($orderDetail->am_order_id);
                                 if (!empty($pickticket) && isset($pickticket->pick_ticket_id)) {
                                     $orderDetail->pick_ticket_id = $pickticket->pick_ticket_id;
                                     $orderDetail->save();
                                     Log::info("AM pick ticket created: " . $pickticket->pick_ticket_id);
                                 } else {
-                                    Log::warning("Pick ticket creation failed for order: " . $orderDetail->shopify_order_id);
+                                    Log::info("Pick ticket creation failed for order: " . $orderDetail->shopify_order_id);
                                 }
                             } else {
-                                $pickticket = $this->getAmPickTicket($orderDetail->am_pick_ticket_id);
+                                $pickticket = $this->getAmPickTicket($orderDetail->pick_ticket_id);
                                 Log::info("AM pick ticket already exists: " . $pickticket->pick_ticket_id);
                             }
                         }
@@ -790,7 +790,7 @@ trait ApparelmagicHelper
         // Log::info("params".json_encode($params));
         // Log::info($url);
         $allocate = $this->apparelMagicApiPutRequest($url, $params);
-    Log::info("response".json_encode($allocate));
+        Log::info("response".json_encode($allocate));
         if (!empty($allocate['response'])) {
             $orderDetail->allocated = 1;
             $orderDetail->save();
@@ -820,33 +820,67 @@ trait ApparelmagicHelper
                 'token' => (string) $token,
             ];
 
-            $response = $this->amPut($url, $params, 'Create Pick Ticket');
+            $response = $this->apparelMagicApiPutRequest($url, $params);
             Log::info("Pick Ticket Create Response for Order {$orderId}: " . json_encode($response));
 
             sleep(5);
-            $parameters = [
-                [
-                    'field'        => 'order_id',
-                    'operator'     => '=',
-                    'include_type' => 'AND',
-                    'value'        => $orderId,
+            $params = [
+                'time'  => (string) $time,
+                'token' => (string) $token,
+                'parameters' => [
+                    [
+                        'field'        => 'order_id',
+                        'operator'     => '=',
+                        'include_type' => 'AND',
+                        'value'        => $orderId,
+                    ]
                 ]
             ];
-
-            $pickResponse = $this->amGet('pick_tickets', $parameters, 'Get Pick Tickets');
-
-            if (!empty($pickResponse->response) && is_array($pickResponse->response)) {
-                $pickticket = end($pickResponse->response); 
+            $baseUrl = $apparelUrl . '/pick_tickets';
+            $pickResponse = $this->apparelMagicApiRequest($baseUrl, $params);
+            Log::info("pick ticket response get for order {$orderId}: " . json_encode($pickResponse));
+            if (!empty($pickResponse['response']) && is_array($pickResponse['response'])) {
+                $pickticket = end($pickResponse['response']); 
                 Log::info("Pick ticket created successfully for Order {$orderId}: " . json_encode($pickticket));
-                return (object) $pickticket;
+                return $pickticket;
             }
-
-            Log::warning("Pick ticket not found after creation for Order {$orderId}");
-            return null;
 
         } catch (Exception $e) {
             Log::error("Error while creating pick ticket for Order {$orderId}: " . $e->getMessage());
             return null;
+        }
+    }
+
+    public function getAmPickTicket($pickticketId)
+    {
+        try {
+            Log::info("hai");
+            $settings   = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
+            $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+            $token      = $settings->firstWhere('code', 'apparelmagic_token')->value;
+            $time = time();
+             $params = [
+                'time'  => (string) $time,
+                'token' => (string) $token,
+                'parameters' => [
+                    [
+                        'field'        => 'pick_ticket_id',
+                    'operator'     => '=',
+                    'include_type' => 'AND',
+                    'value'        => $pickticketId,
+                    ]
+                ]
+            ];
+            Log::info("params".json_encode($params));
+            $baseUrl = $apparelUrl . '/pick_tickets';
+            $pickTicket = $this->apparelMagicApiRequest($baseUrl, $params);
+            Log::info("pick ticket response for order {$pickticketId}: " . json_encode($pickTicket));
+            if (!empty($pickTicket['response'])) {
+                return $pickTicket['response'][0];
+            }
+            return [];
+        } catch (Exception $e) {
+            return ['message' => $e->getMessage(), 'error' => true];
         }
     }
 
