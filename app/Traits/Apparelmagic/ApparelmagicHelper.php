@@ -940,8 +940,8 @@ trait ApparelmagicHelper
                     $productVariant = ProductVariant::where('sku_id', $pickitem['sku_id'])->first();
                     if ($productVariant) {
                         $boxitems[] = [
-                            'pick_ticket_item_id' => $pickitem['id'],   
-                            'qty'                => $pickitem['qty']   
+                            'pick_ticket_item_id' => $pickitem['id'],
+                            'qty' => (string) (int) $pickitem['qty']
                         ];
                     }
                 }
@@ -958,14 +958,15 @@ trait ApparelmagicHelper
             ];
             Log::info("Original boxes for shipment:" . json_encode($original_boxes));
 
-            $params = [
+           $params = [
                 'time'  => (string) $time,
                 'token' => (string) $token,
-                'boxes'  => $original_boxes,
-                'header' => [
-                    'customer_id'              => $pickticket['customer_id'] ?? null,
-                    'selected_pick_ticket_ids' => [$pickticket['pick_ticket_id']],
-                    'warehouse_id'             => $warehouseId,
+                "0"     => [  
+                    'header' => [
+                        'customer_id'              => $pickticket['customer_id'] ?? null,
+                        'selected_pick_ticket_ids' => [$pickticket['pick_ticket_id']],
+                    ],
+                    'boxes'  => $original_boxes
                 ]
             ];
 
@@ -975,6 +976,13 @@ trait ApparelmagicHelper
             $shipmentsresponse = $this->apparelMagicApiPostRequest($baseUrl, $params);
 
             Log::info("ApparelMagic shipment response for PickTicket {$pickticketId}: " . json_encode($shipmentsresponse));
+            if (!empty($shipmentsresponse['response'][0]['id'])) {
+                $shipId = $shipmentsresponse['response'][0]['id'];
+                AmOrder::where('pick_ticket_id', $pickticketId)
+                    ->update(['ship_id' => $shipId]);
+
+                Log::info("Ship ID {$shipId} saved for Pick Ticket {$pickticketId}");
+            }
             return $shipmentsresponse;
 
         } catch (Exception $e) {
