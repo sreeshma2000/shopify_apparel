@@ -8,6 +8,7 @@ use App\Models\AmOrder;
 use App\Models\AmOrderItem;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\Setting;
 use App\Traits\ApiHelper;
 use App\Traits\Apparelmagic\ApparelmagicHelper;
 use Exception;
@@ -405,4 +406,124 @@ trait ShopifyHelper
         }
         
     }
+    public function fulfillShopifyOrder($shopifyOrder, $pickticket, $shipment, $site = 1)
+    {
+        $boxItems = [];
+        $error = 0;
+        $pickticketWarehouse = $pickticket->warehouse_id;
+
+        if ($shopifyOrder->fulfillment_status == 'fulfilled') {
+            $error = 1;
+            return ['message' => 'Order already fulfilled', 'error' => $error];
+        }
+
+        foreach ($shipment->boxes as $box) {
+            foreach ($box->box_items as $boxItem) {
+                $boxItems[$boxItem->sku_id] = ($boxItems[$boxItem->sku_id] ?? 0) + (int)$boxItem->qty;
+            }
+        }
+
+        $fulfillmentResponse = [];
+        $trackingNumber = $shipment->tracking_number ?? '1234567890123';
+
+        $shopifyFulfilResponse = $this->getHttp(
+            "orders/{$shopifyOrder->id}/fulfillment_orders.json",
+            []
+        );
+
+        if (empty($shopifyFulfilResponse['fulfillment_orders'])) {
+            return ['message' => 'No fulfillment orders found for this Shopify order', 'error' => 1];
+        }
+
+        foreach ($shopifyFulfilResponse['fulfillment_orders'] as $fulfillmentOrder) {
+            $location = Setting::where('type','shopify')->where('code','shopify_location')->value('value');
+
+            if (!$location) {
+                continue;
+            }
+
+            $warehouseId = $location->am_warehouse_id;
+            if ($pickticketWarehouse != $warehouseId) {
+                continue;
+            }
+
+            $lineItemsByFulfillmentOrder = [];
+
+            foreach ($fulfillmentOrder['line_items'] as $fulfillLineItem) {
+                if ($fulfillLineItem['fulfillable_quantity'] == 0) {
+                    continue;
+                }
+
+                $productVariant = ProductVariant::where('shopify_inventory_item_id', $fulfillLineItem['inventory_item_id'])->first();
+                if ($productVariant) {
+                    $quantity = $boxItems[$productVariant->sku_id] ?? 0;
+                    if ($quantity > 0) {
+                        $lineItemsByFulfillmentOrder[] = [
+                            "id"       => "gid://shopify/FulfillmentOrderLineItem/" . $fulfillLineItem['id'],
+                            "quantity" => $quantity,
+                        ];
+                    }
+                }
+            }
+
+            if (empty($lineItemsByFulfillmentOrder)) {
+                continue;
+            }
+
+            $variables = [
+                "fulfillment" => [
+                    "notifyCustomer" => true,
+                    "lineItemsByFulfillmentOrder" => [
+                        "fulfillmentOrderId" => "gid://shopify/FulfillmentOrder/" . $fulfillmentOrder['id'],
+                        "fulfillmentOrderLineItems" => $lineItemsByFulfillmentOrder,
+                    ],
+                    "trackingInfo" => [
+                        "number"  => $trackingNumber,
+                    ],
+                ],
+                "message" => "Fulfilled By MagicForce",
+            ];
+
+            $request = [
+                'query' => 'mutation fulfillmentCreateV2($fulfillment: FulfillmentV2Input!) {
+                    fulfillmentCreateV2(fulfillment: $fulfillment) {
+                        fulfillment {
+                            id
+                            status
+                        }
+                        userErrors {
+                            field
+                            message
+                        }
+                    }
+                }',
+                'variables' => $variables,
+            ];
+
+            $response = $this->shopifyGraphQL($request, 'create fulfillment', $shopifyOrder->id, [], $site);
+
+            $errorMessages = [];
+            if (!empty($response->data->fulfillmentCreateV2->userErrors)) {
+                foreach ($response->data->fulfillmentCreateV2->userErrors as $err) {
+                    $errorMessages[] = "Field: " . implode(', ', $err->field) . " - " . $err->message;
+                }
+                $fulfillmentResponse[$fulfillmentOrder['id']] = implode("; ", $errorMessages);
+                $error = 1;
+            } elseif (!empty($response->errors)) {
+                $fulfillmentResponse[$fulfillmentOrder['id']] = $response->errors[0]->message;
+                $error = 1;
+            } else {
+                $fulfillmentResponse[$fulfillmentOrder['id']] = "Order fulfilled successfully";
+            }
+        }
+
+        $responseString = '';
+        foreach ($fulfillmentResponse as $id => $message) {
+            $responseString .= "Fulfillment Order ID {$id}: {$message}\n";
+        }
+
+        return ['message' => trim($responseString), 'error' => $error];
+    }
+
+
 }

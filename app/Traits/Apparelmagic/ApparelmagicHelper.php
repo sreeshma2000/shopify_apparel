@@ -14,6 +14,7 @@ use App\Models\ProductVariant;
 use App\Models\Setting;
 use App\Models\SizeRange;
 use App\Traits\ApiHelper;
+use App\Traits\Shopify\ShopifyHelper;
 use Carbon\Carbon;
 use DateTime;
 use Exception;
@@ -21,7 +22,7 @@ use Illuminate\Support\Facades\Log;
 
 trait ApparelmagicHelper
 {
-     use ApiHelper;
+     use ApiHelper,ShopifyHelper;
 
     public function createApparelmagicProducts($product, $productVariants)
     {
@@ -993,7 +994,7 @@ trait ApparelmagicHelper
             //        $pickticketResponse = $this->getAmPickTicket($pickticketId);
             //        $pickticket = $pickticketResponse['response'][0] ?? $pickticketResponse;
             //    }
-               $this->createAMInvoiceFromShipment($shipId, $order, $pickticketId);
+               $this->createAMInvoiceFromShipment($order, $pickticketResponse);
             }
 
             return ['ship_id' => $shipId ?? null];
@@ -1004,76 +1005,146 @@ trait ApparelmagicHelper
         }
     }
 
-public function createAMInvoiceFromShipment($shipId, $order, $pickticketId)
-{
-    try {
-        Log::info("invoice starting");
-        $pickticketResponse = $this->getAmPickTicket($pickticketId);
-        Log::info("Pick Ticket Response for Id {$pickticketId}: " . json_encode($pickticketResponse));
-        
-        if (empty($pickticketResponse)) {
-            Log::warning("No pick ticket found for ID: {$pickticketId}");
-            return ['message' => 'No pick ticket found', 'error' => true];
-        }
-        $pickticket = $pickticketResponse; 
-
-        $settings    = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
-        $apparelUrl  = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
-        $token       = $settings->firstWhere('code', 'apparelmagic_token')->value;
-        $time        = time();
-
-        $customer_id  = $settings->firstWhere('code', 'apparelmagic_customer')->value;
-
-        $invoiceUrl = $apparelUrl . "/shipments/{$shipId}/invoice";
-
-        $items = [];
-        foreach ($pickticket['pick_ticket_items'] ?? [] as $pickitem) {
-            $productVariant = ProductVariant::where('sku_id', $pickitem['sku_id'])->first();
-            if (!$productVariant) continue;
-
-            $items[] = [
-                'sku_id'     => $productVariant->sku_id,
-                'qty'        => (string)(int)$pickitem['qty'],
-                'is_taxable' => '1'
-            ];
-        }
-
-        if (empty($items)) {
-            Log::warning("No items prepared for invoice for Pick Ticket {$pickticketId}");
-            return ['message' => 'No items for invoice', 'error' => true];
-        }
-
-        $invoiceParams = [
-            'time'  => (string) $time,
-            'token' => (string) $token,
-            "0"     => [
-                'header' => [
-                    'customer_id'  => $customer_id ?? null,
-                ],
-                'items' => $items
-            ]
-        ];
-
-        Log::info("Invoice Params for Shipment {$shipId}: " . json_encode($invoiceParams));
-
-        $invoiceResponse = $this->apparelMagicApiPostRequest($invoiceUrl, $invoiceParams);
-        Log::info("ApparelMagic invoice response for Shipment {$shipId}: " . json_encode($invoiceResponse));
-
-        if (!empty($invoiceResponse['response'][0]['invoice_id'])) {
-            $invoiceId = $invoiceResponse['response'][0]['invoice_id'];
-            if ($order) {
-                $order->update(['am_invoice_id' => $invoiceId]);
-                Log::info("Invoice ID {$invoiceId} saved in AmOrder for Shipment {$shipId}");
+    public function createAMInvoiceFromShipment($order, $pickticketResponse)
+    {
+        try {
+            Log::info("invoice starting");
+            // $pickticketResponse = $this->getAmPickTicket($pickticketId);
+            Log::info("Pick Ticket Response for Id: " . json_encode($pickticketResponse));
+            
+            if (empty($pickticketResponse)) {
+                Log::warning("No pick ticket found for ID:");
+                return ['message' => 'No pick ticket found', 'error' => true];
             }
+            $pickticket = $pickticketResponse; 
+            $invoiceId = $pickticket['invoice_id'] ?? null;
+
+            $existingInvoices = [];
+            if ($invoiceId) {
+                $existingInvoices = $this->getAmInvoice($invoiceId);
+            }
+
+            if (!empty($existingInvoices) && isset($existingInvoices[0]['invoice_id'])) {
+                $invoice = $existingInvoices[0];
+                if ($order && empty($order->am_invoice_id)) {
+                    $order->update(['am_invoice_id' => $invoice['invoice_id']]);
+                    Log::info("Order updated with existing Invoice ID {$invoice['invoice_id']} for Shipment {$shipId}");
+                }
+                return $invoice;
+            }
+
+            else{
+                $settings    = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
+                $apparelUrl  = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+                $token       = $settings->firstWhere('code', 'apparelmagic_token')->value;
+                $time        = time();
+                $customer_id = $settings->firstWhere('code', 'apparelmagic_customer')->value;
+
+               $pickticket = $pickticketResponse; 
+                    $invoiceIdFromPickticket = $pickticket['invoice_id'] ?? null;
+
+                    $existingInvoices = [];
+                    if ($invoiceIdFromPickticket) {
+                        $existingInvoices = $this->getAmInvoice($invoiceIdFromPickticket);
+                }
+
+
+                $items = [];
+                foreach ($pickticket['pick_ticket_items'] ?? [] as $pickitem) {
+                    $productVariant = ProductVariant::where('sku_id', $pickitem['sku_id'])->first();
+                    if (!$productVariant) continue;
+
+                    $items[] = [
+                        'sku_id'     => $productVariant->sku_id,
+                        'qty'        => (string)(int)$pickitem['qty'],
+                        'is_taxable' => '1'
+                    ];
+                }
+
+                if (empty($items)) {
+                    Log::warning("No items prepared for invoice for Pick Ticket");
+                    return ['message' => 'No items for invoice', 'error' => true];
+                }
+                $invoiceUrl = $apparelUrl.'/invoices';
+                $invoiceParams = [
+                    'time'  => (string) $time,
+                    'token' => (string) $token,
+                    "0"     => [
+                        'header' => [
+                            'customer_id'  => $customer_id ?? null,
+                        ],
+                        'items' => $items
+                    ]
+                ];
+
+                Log::info("Invoice Params for Shipment " . json_encode($invoiceParams));
+
+                $invoiceResponse = $this->apparelMagicApiPostRequest($invoiceUrl, $invoiceParams);
+                Log::info("ApparelMagic invoice response for Shipment : " . json_encode($invoiceResponse));
+
+                if (!empty($invoiceResponse['response'][0]['invoice_id'])) {
+                    $invoiceId = $invoiceResponse['response'][0]['invoice_id'];
+                    if ($order) {
+                        $order->update(['am_invoice_id' => $invoiceId]);
+                        Log::info("Invoice ID {$invoiceId} saved in AmOrder for Shipment ");
+                    }
+                }
+
+               $invoice = $invoiceResponse;
         }
 
-        return $invoiceResponse;
+        if ($order && isset($order->shopify_order_id)) {
+            $shippingInfo = (object)[
+                'boxes' => [
+                    (object)[
+                        'box_items' => $pickticket['pick_ticket_items'] ?? []
+                    ]
+                ],
+                'tracking_number' => '1234567890123',
+                'ship_via' => $pickticket['ship_via'] ?? null
+            ];
+
+            $fulfillmentResult = $this->fulfillShopifyOrder($order->shopify_order, $pickticket, $shippingInfo,$site =1);
+
+            Log::info("Shopify fulfillment result for Order {$order->shopify_order_id}: " . json_encode($fulfillmentResult));
+        }
+
+        return $invoice;
 
     } catch (Exception $e) {
-        Log::error("Error creating ApparelMagic invoice for Shipment {$shipId}: " . $e->getMessage());
+        Log::error("Error creating ApparelMagic invoice for Shipment : " . $e->getMessage());
         return ['message' => $e->getMessage(), 'error' => true];
     }
-}
+    }
+    public function getAmInvoice($invoiceId){
+        try {
+            Log::info("Fetching apparel invoices");
+            $settings   = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
+            $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+            $token      = $settings->firstWhere('code', 'apparelmagic_token')->value;
+            $time = time();
 
+            $params = [
+                'time'  => (string) $time,
+                'token' => (string) $token,
+                'parameters' => [
+                    [
+                        'field'        => 'invoice_id',
+                        'operator'     => '=',
+                        'include_type' => 'AND',
+                        'value'        => $invoiceId,
+                    ]
+                ]
+            ];
+
+            $baseUrl = $apparelUrl . '/invoices';
+            $invoice = $this->apparelMagicApiRequest($baseUrl, $params);
+            Log::info("Apparel invoice response: " . json_encode($invoice));
+            return $invoice['response'] ?? [];
+        } catch (Exception $e) {
+            Log::error("Error fetching apparel invoices: " . $e->getMessage());
+            return ['message' => $e->getMessage(), 'error' => true];
+        }
+    }
 
 }
