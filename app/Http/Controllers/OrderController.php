@@ -9,7 +9,6 @@ use App\Models\Setting;
 use App\Traits\Apparelmagic\ApparelmagicHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Log;
 use Yajra\DataTables\Facades\DataTables;
 
 class OrderController extends Controller
@@ -172,23 +171,7 @@ class OrderController extends Controller
 
             $order = AmOrder::findOrFail($request->order_id);
 
-            $existingShipments = $this->getApparelShipments($request->pick_ticket_id);
-
-            if (!empty($existingShipments) && !isset($existingShipments['error'])) {
-                Log::info("Existing shipment found for Pick Ticket {$request->pick_ticket_id}");
-
-                $shipment = $existingShipments[0] ?? null;
-                if ($shipment && !empty($shipment['id'])) {
-                    $shipId = $shipment['id'];
-                    $order->update(['ship_id' => $shipId]);
-                    Log::info("Existing Ship ID {$shipId} saved for Pick Ticket {$request->pick_ticket_id}");
-                }
-
-                $result = $existingShipments;
-            } else {
-                Log::info("No shipment found for Pick Ticket {$request->pick_ticket_id}, creating new shipment...");
-                $result = $this->amShipments($request->pick_ticket_id);
-            }
+            $result = $this->amShipments($request->pick_ticket_id);
 
             return response()->json([
                 'status' => true,
@@ -202,4 +185,5 @@ class OrderController extends Controller
             ], 500);
         }
     }
+
 }
