@@ -882,7 +882,7 @@ trait ApparelmagicHelper
         }
     }
 
-    public function getApparelShipments(){
+    public function getApparelShipments($pickticketId){
         try {
             Log::info("Fetching apparel shipments");
             $settings   = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
@@ -893,6 +893,14 @@ trait ApparelmagicHelper
             $params = [
                 'time'  => (string) $time,
                 'token' => (string) $token,
+                'parameters' => [
+                    [
+                    'field'        => 'pick_ticket_id',
+                    'operator'     => '=',
+                    'include_type' => 'AND',
+                    'value'        => $pickticketId,
+                    ]
+                ]
             ];
 
             $baseUrl = $apparelUrl . '/shipments';
@@ -924,17 +932,6 @@ trait ApparelmagicHelper
 
             $pickticket = $pickticketResponse['response'][0] ?? $pickticketResponse;
             Log::info("response".json_encode($pickticket));
-            // $pick_ticket_items = [];
-            //     if (!empty($pickticket['pick_ticket_items'])) {
-            //         foreach ($pickticket['pick_ticket_items'] as $pickitem) {
-            //             $productVariant = ProductVariant::where('sku_id', $pickitem['sku_id'])->first();
-            //             if ($productVariant) {
-            //                 $pick_ticket_items[$productVariant->sku_concat] = $pickitem['id'];
-            //             }
-            //         }
-            //     }
-            //     Log::info("pick ticket items mapping for reference: " . json_encode($pick_ticket_items));
-
                 $boxitems = [];
                 foreach ($pickticket['pick_ticket_items'] as $pickitem) {
                     $productVariant = ProductVariant::where('sku_id', $pickitem['sku_id'])->first();
@@ -990,7 +987,4 @@ trait ApparelmagicHelper
             return ['message' => $e->getMessage(), 'error' => true];
         }
     }
-
-
-
 }
