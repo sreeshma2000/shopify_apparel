@@ -40,11 +40,13 @@ class CreateApparelOrders extends Command
                     if (!empty($orderDetail) && ($order['credit_status'] ?? '') != 'Pending') {
                         if ($orderDetail->allocated == 0) {
                             $response=$this->getOrdersByOrderId($orderDetail->shopify_order_id);
+                            Log::info("Command response".json_encode($response));
                             $amOrder = $response['response'][0];
                             // dd($amOrder['order_items']);
                             $amItems=collect($amOrder['order_items']);
                             $items = $amItems->where('qty_open', '>', 0);
                             $itemIds = $items->pluck('id')->toArray();
+                            // Log::info("command ItemIds".json_encode($itemIds));
                             if ($this->allocateAmOrder($orderDetail,$itemIds)) {
                                 $orderDetail->allocated = 1;
                                 $orderDetail->save();

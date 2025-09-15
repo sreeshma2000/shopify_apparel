@@ -913,77 +913,95 @@ trait ApparelmagicHelper
         }
     }
 
-    public function amShipments($pickticketId)
-    {
-        try {
-            $settings    = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
-            $apparelUrl  = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
-            $token       = $settings->firstWhere('code', 'apparelmagic_token')->value;
-            $time        = time();
+public function amShipments($pickticketId)
+{
+    try {
+        $settings    = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
+        $apparelUrl  = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+        $token       = $settings->firstWhere('code', 'apparelmagic_token')->value;
+        $warehouseId = $settings->firstWhere('code', 'apparelmagic_location')->value ?? '';
+        $time        = time();
 
-            $pickticketResponse = $this->getAmPickTicket($pickticketId);
-            Log::info("pick ticket response for order {$pickticketId}: " . json_encode($pickticketResponse));
+        $pickticketResponse = $this->getAmPickTicket($pickticketId);
+        Log::info("pick ticket response for order {$pickticketId}: " . json_encode($pickticketResponse));
 
-            if (empty($pickticketResponse)) {
-                Log::warning("No pick ticket found for ID: {$pickticketId}");
-                return [];
-            }
-
-            $pickticket = $pickticketResponse['response'][0] ?? $pickticketResponse;
-            Log::info("response".json_encode($pickticket));
-                $boxitems = [];
-                foreach ($pickticket['pick_ticket_items'] as $pickitem) {
-                    $productVariant = ProductVariant::where('sku_id', $pickitem['sku_id'])->first();
-                    if ($productVariant) {
-                        $boxitems[] = [
-                            'pick_ticket_item_id' => $pickitem['id'],
-                            'qty' => (string) (int) $pickitem['qty']
-                        ];
-                    }
-                }
-
-            Log::info("Box Items for shipment:" . json_encode($boxitems));
-            if (!$boxitems) {
-                Log::warning("No box items prepared for shipment of Pick Ticket: {$pickticketId}");
-                return [];
-            }
-
-            $original_boxes[] = [
-                'box_number' => "1",
-                'box_items'  => $boxitems
-            ];
-            Log::info("Original boxes for shipment:" . json_encode($original_boxes));
-
-           $params = [
-                'time'  => (string) $time,
-                'token' => (string) $token,
-                "0"     => [  
-                    'header' => [
-                        'customer_id'              => $pickticket['customer_id'] ?? null,
-                        'selected_pick_ticket_ids' => [$pickticket['pick_ticket_id']],
-                    ],
-                    'boxes'  => $original_boxes
-                ]
-            ];
-
-            Log::info("Shipment params for Pickticket {$pickticketId}: " . json_encode($params));
-
-            $baseUrl = $apparelUrl . '/shipments';
-            $shipmentsresponse = $this->apparelMagicApiPostRequest($baseUrl, $params);
-
-            Log::info("ApparelMagic shipment response for PickTicket {$pickticketId}: " . json_encode($shipmentsresponse));
-            if (!empty($shipmentsresponse['response'][0]['id'])) {
-                $shipId = $shipmentsresponse['response'][0]['id'];
-                AmOrder::where('pick_ticket_id', $pickticketId)
-                    ->update(['ship_id' => $shipId]);
-
-                Log::info("Ship ID {$shipId} saved for Pick Ticket {$pickticketId}");
-            }
-            return $shipmentsresponse;
-
-        } catch (Exception $e) {
-            Log::error("Error fetching apparel shipments: " . $e->getMessage());
-            return ['message' => $e->getMessage(), 'error' => true];
+        if (empty($pickticketResponse)) {
+            Log::warning("No pick ticket found for ID: {$pickticketId}");
+            return [];
         }
+
+        $pickticket = $pickticketResponse['response'][0] ?? $pickticketResponse;
+        Log::info("response" . json_encode($pickticket));
+        $boxitems = [];
+        foreach ($pickticket['pick_ticket_items'] as $pickitem) {
+            $productVariant = ProductVariant::where('sku_id', $pickitem['sku_id'])->first();
+            if ($productVariant) {
+                $boxitems[] = [
+                    'pick_ticket_item_id' => $pickitem['id'],
+                    'qty' => (string) (int) $pickitem['qty']
+                ];
+            }
+        }
+
+        Log::info("Box Items for shipment:" . json_encode($boxitems));
+        if (!$boxitems) {
+            Log::warning("No box items prepared for shipment of Pick Ticket: {$pickticketId}");
+            return [];
+        }
+
+        $original_boxes[] = [
+            'box_number' => "1",
+            'box_items'  => $boxitems
+        ];
+        Log::info("Original boxes for shipment:" . json_encode($original_boxes));
+
+        $params = [
+            'time'  => (string) $time,
+            'token' => (string) $token,
+            "0"     => [  
+                'header' => [
+                    'customer_id'              => $pickticket['customer_id'] ?? null,
+                    'selected_pick_ticket_ids' => [$pickticket['pick_ticket_id']],
+                ],
+                'boxes'  => $original_boxes
+            ]
+        ];
+
+        Log::info("Shipment params for Pickticket {$pickticketId}: " . json_encode($params));
+
+        $baseUrl = $apparelUrl . '/shipments';
+        $shipmentsresponse = $this->apparelMagicApiPostRequest($baseUrl, $params);
+
+        Log::info("ApparelMagic shipment response for PickTicket {$pickticketId}: " . json_encode($shipmentsresponse));
+
+        if (!empty($shipmentsresponse['response'][0]['id'])) {
+            $shipId = $shipmentsresponse['response'][0]['id'];
+            $order = AmOrder::where('pick_ticket_id', $pickticketId)->first();
+            if ($order) {
+                $order->update(['ship_id' => $shipId]);
+            }
+            $invoiceUrl = $apparelUrl . "/shipments/{$shipId}/invoice";
+            $invoiceParams = [
+                'time'  => (string) $time,
+                'token' => (string) $token
+            ];
+            $invoiceResponse = $this->apparelMagicApiPostRequest($invoiceUrl, $invoiceParams);
+            Log::info("ApparelMagic invoice response for PickTicket {$pickticketId}: " . json_encode($invoiceResponse));
+            if (!empty($invoiceResponse['response'][0]['invoice_id'])) {
+                $invoiceId = $invoiceResponse['response'][0]['invoice_id'];
+
+                if ($order) {
+                    $order->update(['am_invoice_id' => $invoiceId]);
+                    Log::info("Invoice ID {$invoiceId} saved in AmOrder for Pick Ticket {$pickticketId}");
+                }
+            }
+        }
+        return $shipmentsresponse;
+
+    } catch (Exception $e) {
+        Log::error("Error fetching apparel shipments: " . $e->getMessage());
+        return ['message' => $e->getMessage(), 'error' => true];
     }
+}
+
 }
