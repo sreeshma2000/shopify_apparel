@@ -919,7 +919,6 @@ trait ApparelmagicHelper
             $settings    = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
             $apparelUrl  = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
             $token       = $settings->firstWhere('code', 'apparelmagic_token')->value;
-            $warehouseId = $settings->firstWhere('code', 'apparelmagic_location')->value ?? '';
             $time        = time();
 
             $pickticketResponse = $this->getAmPickTicket($pickticketId);
