@@ -51,6 +51,9 @@
                         </div>
 
                         <div class="dropdown ms-auto">
+                            <button class="btn btn-primary btn-icon" id="add_shipment_btn">
+                                <i class="bi bi-plus-circle me-1"></i> Add Shipment
+                            </button>
                             <button class="btn btn-primary btn-icon" id="fetch_orders_btn">
                                 <i class="bi bi-arrow-repeat me-1"></i> Fetch Shopify Orders
                             </button>
@@ -137,10 +140,10 @@
 
       <div class="modal-body">
         <form id="fulfilOrderForm">
-          <input type="hidden" id="order_id" name="order_id">
+          <input type="hidden" id="fulfil_order_id" name="order_id">
           <div class="mb-3">
-            <label for="pick_ticket_id" class="form-label">Pick Ticket ID</label>
-            <input type="text" class="form-control" id="pick_ticket_id" name="pick_ticket_id" required>
+            <label for="tracking_number" class="form-label">Tracking Number</label>
+            <input type="text" class="form-control" id="tracking_number" name="tracking_number" placeholder="Enter tracking number" required>
           </div>
         </form>
       </div>
@@ -157,6 +160,36 @@
   </div>
 </div>
 
+
+<div class="modal fade" id="addShipmentModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h6 class="modal-title">Add Shipment</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <form id="addShipmentForm">
+          <div class="mb-3">
+            <label for="order_ids" class="form-label">Order IDs (comma separated)</label>
+            <textarea class="form-control" id="order_ids" name="order_ids" rows="3" placeholder="Enter Order IDs"></textarea>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirmAddShipmentBtn">
+          <span class="btn-text">Create Shipment</span>
+          <span class="spinner-border spinner-border-sm d-none ms-2"></span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
 
 @endsection
 @section('script')
@@ -291,20 +324,71 @@ $("#fetch_orders_btn").on("click", function() {
       })
 
  });
+$(document).on("click", "#add_shipment_btn", function() {
+    $("#order_ids").val(""); 
+    $("#addShipmentModal").modal("show");
+});
+$(document).on("click", "#confirmAddShipmentBtn", function() {
+    let btn = $(this);
+    let orderIds = $("#order_ids").val().trim();
+
+    if (!orderIds) {
+        Swal.fire({ icon: "warning", title: "Please enter at least one Order ID" });
+        return;
+    }
+
+    $.ajax({
+        url: "{{ route('order.create-shipment') }}",
+        type: "POST",
+        data: {
+            order_ids: orderIds,
+            _token: "{{ csrf_token() }}"
+        },
+        beforeSend: function() {
+            btn.prop("disabled", true);
+            btn.find(".btn-text").text("Processing...");
+            btn.find(".spinner-border").removeClass("d-none");
+        },
+        success: function(response) {
+            $("#addShipmentModal").modal("hide");
+            Swal.fire({
+                icon: "success",
+                title: "Shipment Created",
+                text: response.message || "Shipment and invoice created successfully"
+            });
+            $("#ordertb").DataTable().ajax.reload();
+        },
+        error: function(xhr) {
+            Swal.fire({
+                icon: "error",
+                title: "Error",
+                text: xhr.responseJSON?.message || "Something went wrong"
+            });
+        },
+        complete: function() {
+            btn.prop("disabled", false);
+            btn.find(".btn-text").text("Create Shipment");
+            btn.find(".spinner-border").addClass("d-none");
+        }
+    });
+});
+
+// Open modal and set order id
 $(document).on("click", ".fulfil-order-btn", function () {
     let orderId = $(this).data("id");
-    $("#order_id").val(orderId);
-    $("#pick_ticket_id").val(""); 
+    $("#fulfil_order_id").val(orderId);
+    $("#tracking_number").val(""); 
     $("#fulfilOrderModal").modal("show");
 });
 
+// Confirm fulfilment
 $(document).on("click", "#confirmFulfilBtn", function () {
     let btn = $(this);
-    let orderId = $("#order_id").val();
-    let pickTicketId = $("#pick_ticket_id").val();
+    let orderId = $("#fulfil_order_id").val();
+    let trackingNumber = $("#tracking_number").val().trim();
 
-    if (!pickTicketId) {
-        Swal.fire({ icon: "warning", title: "Pick Ticket ID is required" });
+    if (!trackingNumber) {
+        Swal.fire({ icon: "warning", title: "Tracking number is required" });
         return;
     }
 
@@ -313,7 +397,7 @@ $(document).on("click", "#confirmFulfilBtn", function () {
         type: "POST",
         data: {
             order_id: orderId,
-            pick_ticket_id: pickTicketId,
+            tracking_number: trackingNumber,
             _token: "{{ csrf_token() }}"
         },
         beforeSend: function () {
@@ -344,7 +428,6 @@ $(document).on("click", "#confirmFulfilBtn", function () {
         }
     });
 });
-
 
 </script>
 

@@ -26,7 +26,7 @@ trait ApiHelper
             return (['status' => 'failure', 'statusCode' => $e->getCode(), 'message' => $e->getMessage()]);
         }
     }
-     public function getHttp($queryString, $variables){
+     public function getHttp($queryString, $variables=[]){
         $domain = Setting::where('type','shopify')->where('code','shopify_store')->where('status',1)->value('value');
         $domain='alvarez-marsal.myshopify.com';
         $url = 'https://' . $domain . '/admin/api/2025-07/graphql.json';

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands\Shopify;
 
+use App\Jobs\Shopify\FetchShopifyOrderByName;
 use App\Jobs\Shopify\GetShopifyOrders;
 use App\Models\Setting;
 use Illuminate\Console\Command;
@@ -13,7 +14,7 @@ class FetchShopifyOrders extends Command
      *
      * @var string
      */
-    protected $signature = 'fetch:shopify-orders';
+    protected $signature = 'fetch:shopify-orders {--orderId=}';
 
     /**
      * The console command description.
@@ -28,6 +29,13 @@ class FetchShopifyOrders extends Command
     public function handle()
     {
         $this->info('Get orders  ...........');
+        if ($this->option('orderId')) {
+            $orderIds=explode(',',$this->option('orderId'));
+            foreach($orderIds as $orderId){
+                 FetchShopifyOrderByName::dispatch($orderId);
+            }
+            return $this->info(' order id ' . $this->option('orderId') . ' processed');
+        }
         $settings = Setting::where('type', 'shopify')->where('status', 1)->get();
         if(empty($settings)){
             return $this->info('No Settings Found.');

@@ -9,7 +9,9 @@ use App\Models\Setting;
 use App\Traits\Apparelmagic\ApparelmagicHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
 use Yajra\DataTables\Facades\DataTables;
+use function GuzzleHttp\json_decode;
 
 class OrderController extends Controller
 {
@@ -166,16 +168,19 @@ class OrderController extends Controller
         try {
             $request->validate([
                 'order_id' => 'required|integer',
-                'pick_ticket_id' => 'required|string'
+                'tracking_number' => 'required|string'
             ]);
 
             $order = AmOrder::findOrFail($request->order_id);
 
-            $result = $this->amShipments($request->pick_ticket_id);
+            if($order){
+                $result = $this->shopifyFulfilment($order);
+
+            }
 
             return response()->json([
                 'status' => true,
-                'message' => "Fulfilment triggered for Pick Ticket ID {$request->pick_ticket_id}",
+                'message' => "Fulfilment triggered for Order ID {$order->am_order_id} with tracking number {$request->tracking_number}",
                 'result' => $result
             ]);
         } catch (\Exception $e) {
@@ -184,6 +189,39 @@ class OrderController extends Controller
                 'message' => $e->getMessage()
             ], 500);
         }
+    }
+    public function createShipmentFromOrder(Request $request)
+    {
+        $request->validate([
+            'order_ids' => 'required|string'
+        ]);
+
+        $orderIds = explode(',', $request->order_ids); 
+        $messages = [];
+
+        foreach ($orderIds as $amOrderId) {
+            $amOrderId = trim($amOrderId);
+            $order = AmOrder::where('am_order_id', $amOrderId)->first();
+
+            if (!$order) {
+                $messages[] = "AM Order ID {$amOrderId} not found";
+                continue;
+            }
+
+            $pickticketId = $order->pick_ticket_id;
+            if (!$pickticketId) {
+                $messages[] = "Pick Ticket not found for AM Order ID {$amOrderId}";
+                continue;
+            }
+
+            $result = $this->amShipments($pickticketId);
+                Log::info("result in controller".json_encode($result));
+            }
+
+        return response()->json([
+            'status' => true,
+            'message' => implode("\n", $messages)
+        ]);
     }
 
 }

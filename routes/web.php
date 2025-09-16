@@ -19,5 +19,6 @@ Route::resource('order', App\Http\Controllers\OrderController::class);
 Route::post('fetch-order', [App\Http\Controllers\OrderController::class, 'fetchOrders'])->name('fetch-order');
 Route::post('create-am-orders', [App\Http\Controllers\OrderController::class, 'createAmOrders'])->name('create-am-orders');
 Route::post('/orders/fulfil', [App\Http\Controllers\OrderController::class, 'fulfilfulOrder'])->name('order.fulfil');
+Route::post('/order/create-shipment', [App\Http\Controllers\OrderController::class, 'createShipmentFromOrder'])->name('order.create-shipment');
 
 });

@@ -10,13 +10,12 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Setting;
 use App\Traits\ApiHelper;
-use App\Traits\Apparelmagic\ApparelmagicHelper;
 use Exception;
 use Illuminate\Support\Facades\Log;
 
 trait ShopifyHelper
 {
-    use ApiHelper,ApparelmagicHelper;
+    use ApiHelper;
     public function fetchInventory($limit, $reverse, $variantCount, $nextPageCursor, $settings)
     {
         $locationSetting = $settings->where('code', 'shopify_location')->first();
@@ -406,11 +405,254 @@ trait ShopifyHelper
         }
         
     }
+
+    public function getShopifyOrderByName($orderName)
+    {
+        try {
+            $settings = Setting::where('type', 'shopify')->where('status', 1)->get();
+            $filter = 'name:' . $orderName;
+            $queryString ='query order($filter: String) {
+                orders(first: 1, query: $filter) {
+                    edges {
+                    node {
+                        id
+                        email
+                        name
+                        displayFulfillmentStatus
+                        createdAt
+                        updatedAt
+                        closedAt
+                        note
+                        totalPriceSet {
+                            shopMoney {
+                                amount
+                            }
+                        }
+                        fulfillmentOrders(first:5) {
+                            edges {
+                                cursor
+                                node {
+                                    id
+                                    status
+                                    lineItems (first:10) {
+                                        edges {
+                                            node {
+                                                id
+                                                lineItem {
+                                                    id
+                                                    sku
+                                                    title
+                                                    variant {
+                                                        id
+                                                        title
+                                                    }
+                                                    originalTotalSet {
+                                                        shopMoney {
+                                                            amount
+                                                            currencyCode
+                                                        }
+                                                    }
+                                                }
+                                                totalQuantity
+                                                remainingQuantity
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        totalShippingPriceSet {
+                            shopMoney {
+                                amount
+                                currencyCode
+                            }
+                        }
+                        totalTaxSet {
+                            shopMoney {
+                                amount
+                                currencyCode
+                            }
+                        }
+                        totalDiscountsSet {
+                            shopMoney {
+                                amount
+                                currencyCode
+                            }
+                        }
+                        subtotalPriceSet {
+                            shopMoney {
+                                amount
+                                currencyCode
+                            }
+                        }
+                        totalPriceSet {
+                            shopMoney {
+                                amount
+                                currencyCode
+                            }
+                        }
+                        customer {
+                            id
+                            firstName
+                            lastName
+                        }
+                        billingAddress {
+                            id
+                            name
+                            phone
+                            address1
+                            address2
+                            company
+                            zip
+                            city
+                            country
+                        }
+                        shippingAddress {
+                            id
+                            name
+                            phone
+                            address1
+                            address2
+                            company
+                            zip
+                            city
+                            country
+                            provinceCode
+                        }
+                        shippingLine {
+                            id
+                            carrierIdentifier
+                            code
+                            source
+                            title
+                        }
+                    }
+                }
+                pageInfo {
+                    hasNextPage
+                    hasPreviousPage
+                    startCursor
+                    endCursor
+                }
+            }';
+            $variables = ['filter' => $filter];
+            $response = $this->getHttp($queryString, $variables);
+
+            if (empty($response['data']['orders']['edges'])) {
+                return null;
+            }
+
+            $orderNode = $response['data']['orders']['edges'][0]['node'];
+            $shopifyOrderId = str_replace('gid://shopify/Order/', '', $orderNode['id']);
+
+            $amOrder = AmOrder::updateOrCreate(
+                ['shopify_order_id' => $shopifyOrderId],
+                [
+                    'shopify_order_name' => $orderNode['name'] ?? null,
+                    'shopify_email' => $orderNode['email'] ?? null,
+                    'shopify_fulfillment_status' => $orderNode['displayFulfillmentStatus'] ?? null,
+                    'shopify_notes' => $orderNode['note'] ?? null,
+                    'shopify_customer_id' => $orderNode['customer']['id'] ?? null,
+                    'shopify_customer_firstname' => $orderNode['customer']['firstName'] ?? null,
+                    'shopify_customer_lastname' => $orderNode['customer']['lastName'] ?? null,
+                    'shopify_shipping_address1' => $orderNode['shippingAddress']['address1'] ?? null,
+                    'shopify_shipping_address2' => $orderNode['shippingAddress']['address2'] ?? null,
+                    'shopify_shipping_city' => $orderNode['shippingAddress']['city'] ?? null,
+                    'shopify_shipping_zip' => $orderNode['shippingAddress']['zip'] ?? null,
+                    'shopify_shipping_country' => $orderNode['shippingAddress']['country'] ?? null,
+                    'shopify_shipping_provincecode' => $orderNode['shippingAddress']['provinceCode'] ?? null,
+                    'shopify_shipping_phone' => $orderNode['shippingAddress']['phone'] ?? null,
+                    'shopify_created_at' => isset($orderNode['createdAt']) ? date('Y-m-d', strtotime($orderNode['createdAt'])) : null,
+                ]
+            );
+
+            if (!empty($orderNode['fulfillmentOrders']['edges'])) {
+                foreach ($orderNode['fulfillmentOrders']['edges'] as $fulfillmentEdge) {
+                    $fulfillmentNode = $fulfillmentEdge['node'];
+                    foreach ($fulfillmentNode['lineItems']['edges'] as $lineItemEdge) {
+                        $lineItem = $lineItemEdge['node']['lineItem'];
+                        AmOrderItem::updateOrCreate(
+                            [
+                                'shopify_order_id' => $shopifyOrderId,
+                                'shopify_line_item_id' => str_replace('gid://shopify/LineItem/', '', $lineItemEdge['node']['id']),
+                            ],
+                            [
+                                'shopify_order_gid' => $shopifyOrderId,
+                                'shopify_order_name' => $amOrder->shopify_order_name,
+                                'shopify_sku' => $lineItem['sku'] ?? null,
+                                'shopify_variant_title' => $lineItem['variant']['title'] ?? null,
+                                'shopify_quantity' => $lineItemEdge['node']['totalQuantity'] ?? 0,
+                                'shopify_current_quantity' => $lineItemEdge['node']['remainingQuantity'] ?? 0,
+                                'shopify_variant_id' => $lineItem['variant']['id'] ?? null,
+                                'shopify_fulfillment_order_id' => $fulfillmentNode['id'] ?? null,
+                            ]
+                        );
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            dd($e);
+        }
+    }
+   
+    public function shopifyFulfilment(AmOrder $order)
+    {
+        $site = 1;
+
+        if (!$order) {
+            return ['message' => 'Order not found', 'error' => 1];
+        }
+        $shipments = $this->getApparelShipments($order->pick_ticket_id);
+        if (empty($shipments)) {
+            return ['message' => 'No shipments found for pickticket', 'error' => 1];
+        }
+
+        $pickticket = $this->getAmPickTicket($order->pick_ticket_id);
+        Log::info("pickticket");
+        if (empty($pickticket)) {
+            return ['message' => 'Pickticket not found', 'error' => 1];
+        }
+
+        $shopifyOrderResponse = $this->getHttp("orders/{$order->shopify_order_id}.json",[]);
+Log::info("shopifyOrderResponse".json_encode($shopifyOrderResponse));
+        if (empty($shopifyOrderResponse) || empty($shopifyOrderResponse->order)) {
+            return ['message' => 'Failed to get Shopify order', 'error' => 1];
+        }
+
+        $shopifyOrder = $shopifyOrderResponse->order;
+        $fulfillmentResults = [];
+        foreach ($shipments as $shipment) {
+            if ($order->fulfillment_status == 'fulfilled') {
+                $fulfillmentResults[] = 'Order already fulfilled';
+                continue;
+            }
+
+            $shipmentData =[
+                'boxes' => [
+                    [
+                        'box_items' => $pickticket['pick_ticket_items'] ?? []
+                    ]
+                ],
+                'tracking_number' => $shipment['tracking_number'] ?? '1234567890123',
+                'ship_via' => $pickticket['ship_via'] ?? null,
+            ];
+
+            $result = $this->fulfillShopifyOrder($shopifyOrder,$pickticket, $shipmentData, $site=1);
+            $fulfillmentResults[] = $result['message'] ?? 'Fulfillment attempted';
+        }
+
+        return [
+            'message' => implode("\n", $fulfillmentResults),
+            'error' => 0
+        ];
+    }
+
     public function fulfillShopifyOrder($shopifyOrder, $pickticket, $shipment, $site = 1)
     {
+        Log::info("fulfillment started for order:" . json_encode($shopifyOrder));
         $boxItems = [];
         $error = 0;
-        $pickticketWarehouse = $pickticket->warehouse_id;
+        $pickticketWarehouse = $pickticket['warehouse_id'] ?? null;
 
         if ($shopifyOrder->fulfillment_status == 'fulfilled') {
             $error = 1;
@@ -436,14 +678,26 @@ trait ShopifyHelper
         }
 
         foreach ($shopifyFulfilResponse['fulfillment_orders'] as $fulfillmentOrder) {
-            $location = Setting::where('type','shopify')->where('code','shopify_location')->value('value');
+            $location = Setting::where('type', 'shopify')
+                ->where('code', 'shopify_location')
+                ->value('value');
 
             if (!$location) {
                 continue;
             }
 
-            $warehouseId = $location->am_warehouse_id;
-            if ($pickticketWarehouse != $warehouseId) {
+            if (is_string($location)) {
+                $decoded = json_decode($location, true);
+                if (json_last_error() === JSON_ERROR_NONE && isset($decoded[0]['name'])) {
+                    $shopifyLocationId = $decoded[0]['name']; 
+                } else {
+                    $shopifyLocationId = $location; 
+                }
+            } else {
+                $shopifyLocationId = $location;
+            }
+
+            if ($pickticketWarehouse != $shopifyLocationId) {
                 continue;
             }
 
@@ -454,7 +708,11 @@ trait ShopifyHelper
                     continue;
                 }
 
-                $productVariant = ProductVariant::where('shopify_inventory_item_id', $fulfillLineItem['inventory_item_id'])->first();
+                $productVariant = ProductVariant::where(
+                    'shopify_inventory_item_id',
+                    $fulfillLineItem['inventory_item_id']
+                )->first();
+
                 if ($productVariant) {
                     $quantity = $boxItems[$productVariant->sku_id] ?? 0;
                     if ($quantity > 0) {
@@ -478,7 +736,7 @@ trait ShopifyHelper
                         "fulfillmentOrderLineItems" => $lineItemsByFulfillmentOrder,
                     ],
                     "trackingInfo" => [
-                        "number"  => $trackingNumber,
+                        "number" => $trackingNumber,
                     ],
                 ],
                 "message" => "Fulfilled By MagicForce",
@@ -524,6 +782,4 @@ trait ShopifyHelper
 
         return ['message' => trim($responseString), 'error' => $error];
     }
-
-
 }
