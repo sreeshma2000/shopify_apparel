@@ -73,8 +73,8 @@
                             <th>AM Order ID</th>
                             <th>Shopify Order ID</th>
                             <th>Customer Name</th>
-                            <th>Customer Po</th>
-                            <th>Customer Email</th>
+                            <th>Am Pickticket ID</th>
+                            <th>Am Ship ID</th>
                             <th>Amount</th>
                             <th>Shopify Fulfillment status</th> 
                             <th>Apparel Fulfillment status</th>
@@ -212,8 +212,8 @@ var $ordertable = $('#ordertb').DataTable({
         { data: 'am_order_id', name: 'am_order_id' },
         { data: 'shopify_order_id', name: 'shopify_order_id' },
         { data: 'name', name: 'name' },
-        { data: 'customer_po', name: 'customer_po' },
-        { data: 'email', name: 'email' },
+        { data: 'pick_ticket_id', name: 'pick_ticket_id' },  
+        { data: 'ship_id', name: 'ship_id' },
         { data:'amount',name:'amount'},
         { data:'shopify_fulfillment_status',name:'shopify_fulfillment_status'},
         { data:'fulfillment_status',name:'fulfillment_status'},

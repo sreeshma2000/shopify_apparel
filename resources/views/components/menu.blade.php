@@ -43,7 +43,7 @@
         </div>
         <ul>
             <li>
-                <a href="#">
+                <a href="{{route('dashboard')}}" @if (request()->routeIs('dashboard')) class="active" @endif>
                     <span class="nav-link-icon">
                         <i class="bi bi-bar-chart"></i>
                     </span>
@@ -59,6 +59,14 @@
                 </a>
             </li>
             <li>
+                <a href="{{ route('order.index') }}" @if (request()->routeIs('order.index')) class="active" @endif>
+                    <span class="nav-link-icon">
+                      <i class="bi bi-cart"></i>
+                    </span>
+                    <span>Orders</span>
+                </a>
+            </li>
+            <li>
                 <a href="#">
                     <span class="nav-link-icon">
                     <i class="fa fa-cog" aria-hidden="true"></i>
@@ -71,14 +79,6 @@
                     <li><a href="{{ route('setting.index', ['platform' => 'apparelmagic']) }}"
                         @if (request()->fullUrl() == route('setting.index', ['platform' => 'apparelmagic'])) class="active" @endif>apparel magic</a></li>
                 </ul>
-            </li>
-            <li>
-                <a href="{{ route('order.index') }}" @if (request()->routeIs('order.index')) class="active" @endif>
-                    <span class="nav-link-icon">
-                      <i class="bi bi-cart"></i>
-                    </span>
-                    <span>Orders</span>
-                </a>
             </li>
         </ul>
     </div>

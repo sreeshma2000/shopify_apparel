@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AmOrder;
+use App\Models\Product;
 use Illuminate\Http\Request;
 
 class HomeController extends Controller
@@ -21,8 +23,11 @@ class HomeController extends Controller
      *
      * @return \Illuminate\Contracts\Support\Renderable
      */
-    public function index()
+     public function index()
     {
-        return view('home');
+        $order_count = AmOrder::count();
+        $product_count = Product::count();
+
+        return view('home', compact('order_count', 'product_count'));
     }
 }

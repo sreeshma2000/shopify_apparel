@@ -138,6 +138,7 @@ trait ShopifyHelper
 
                             ],
                         [
+                                'shopify_inventory_item_id' => str_replace('gid://shopify/InventoryItem/', '', $productVariant['node']['inventoryItem']['id'] ?? null),
                                 'style_number'=>$products->style_number??null,
                                 'shopify_sku' => $productVariant['node']['sku'] ?? null,
                                 'shopify_barcode' => $productVariant['node']['barcode'] ?? null,
@@ -226,6 +227,9 @@ trait ShopifyHelper
                                                     title
                                                     variant {
                                                         id
+                                                        inventoryItem {
+                                                        id
+                                                        }
                                                         title
                                                     }
                                                     originalTotalSet {
@@ -406,11 +410,13 @@ trait ShopifyHelper
         
     }
 
-    public function getShopifyOrderByName($orderName)
+    public function getShopifyOrderById($orderId)
     {
         try {
             $settings = Setting::where('type', 'shopify')->where('status', 1)->get();
-            $filter = 'name:' . $orderName;
+            $filter = 'id:' . $orderId;
+            // dd( $filter);
+            // $orderGid = 'gid://shopify/Order/' . $orderId;
             $queryString ='query order($filter: String) {
                 orders(first: 1, query: $filter) {
                     edges {
@@ -444,6 +450,9 @@ trait ShopifyHelper
                                                     title
                                                     variant {
                                                         id
+                                                        inventoryItem {
+                                                            id
+                                                        }
                                                         title
                                                     }
                                                     originalTotalSet {
@@ -534,12 +543,13 @@ trait ShopifyHelper
                     startCursor
                     endCursor
                 }
+            }
             }';
             $variables = ['filter' => $filter];
             $response = $this->getHttp($queryString, $variables);
-
-            if (empty($response['data']['orders']['edges'])) {
-                return null;
+            Log::info("response".json_encode($response));
+            if (!empty($response['data']['orders']['edges'])) {
+                return $response;
             }
 
             $orderNode = $response['data']['orders']['edges'][0]['node'];
@@ -603,6 +613,7 @@ trait ShopifyHelper
             return ['message' => 'Order not found', 'error' => 1];
         }
         $shipments = $this->getApparelShipments($order->pick_ticket_id);
+        Log::info("shipments in shopify helper".json_encode($shipments));
         if (empty($shipments)) {
             return ['message' => 'No shipments found for pickticket', 'error' => 1];
         }
@@ -613,126 +624,103 @@ trait ShopifyHelper
             return ['message' => 'Pickticket not found', 'error' => 1];
         }
 
-        $shopifyOrderResponse = $this->getHttp("orders/{$order->shopify_order_id}.json",[]);
-Log::info("shopifyOrderResponse".json_encode($shopifyOrderResponse));
-        if (empty($shopifyOrderResponse) || empty($shopifyOrderResponse->order)) {
-            return ['message' => 'Failed to get Shopify order', 'error' => 1];
+        $shopifyOrderResponse = $this->getShopifyOrderById($order->shopify_order_id);
+        // dd($order->shopify_order_id);
+        Log::info("shopifyOrderResponse".json_encode($shopifyOrderResponse));
+        if (empty($shopifyOrderResponse) && empty($shopifyOrderResponse['data']['orders']['edges'][0]['node'])) {
+            return ['message' => 'Failed to get Shopify order'];
         }
 
-        $shopifyOrder = $shopifyOrderResponse->order;
+        $shopifyOrder = $shopifyOrderResponse['data']['orders']['edges'][0]['node'] ?? null;
         $fulfillmentResults = [];
-        foreach ($shipments as $shipment) {
-            if ($order->fulfillment_status == 'fulfilled') {
+
+        // foreach ($shipments as $shipment) {
+        //     Log::info("hai");
+
+            if (isset($shopifyOrder['displayFulfillmentStatus']) && $shopifyOrder['displayFulfillmentStatus'] === 'FULFILLED') {
+                Log::info("Order already fulfilled");
                 $fulfillmentResults[] = 'Order already fulfilled';
-                continue;
             }
 
-            $shipmentData =[
-                'boxes' => [
-                    [
-                        'box_items' => $pickticket['pick_ticket_items'] ?? []
-                    ]
-                ],
-                'tracking_number' => $shipment['tracking_number'] ?? '1234567890123',
-                'ship_via' => $pickticket['ship_via'] ?? null,
-            ];
+            // $shipmentData = [
+            //     'boxes' => [
+            //         [
+            //             'box_items' => $pickticket['pick_ticket_items'] ?? []
+            //         ]
+            //     ],
+            //     'tracking_number' => $shipment['tracking_number'] ?? '1234567890123',
+            //     'ship_via'        => $pickticket['ship_via'] ?? null,
+            // ];
 
-            $result = $this->fulfillShopifyOrder($shopifyOrder,$pickticket, $shipmentData, $site=1);
+            // Log::info("shipment" . json_encode($shipmentData));
+
+            $result = $this->fulfillShopifyOrder($shopifyOrder, $pickticket);
             $fulfillmentResults[] = $result['message'] ?? 'Fulfillment attempted';
-        }
+        // }
 
         return [
             'message' => implode("\n", $fulfillmentResults),
-            'error' => 0
+            'error'   => 0
         ];
+
     }
 
-    public function fulfillShopifyOrder($shopifyOrder, $pickticket, $shipment, $site = 1)
+    public function fulfillShopifyOrder($shopifyOrder, $pickticket)
     {
         Log::info("fulfillment started for order:" . json_encode($shopifyOrder));
         $boxItems = [];
         $error = 0;
         $pickticketWarehouse = $pickticket['warehouse_id'] ?? null;
 
-        if ($shopifyOrder->fulfillment_status == 'fulfilled') {
-            $error = 1;
-            return ['message' => 'Order already fulfilled', 'error' => $error];
+        if ($shopifyOrder['displayFulfillmentStatus'] === 'FULFILLED') {
+            return ['message' => 'Order already fulfilled'];
         }
 
-        foreach ($shipment->boxes as $box) {
-            foreach ($box->box_items as $boxItem) {
-                $boxItems[$boxItem->sku_id] = ($boxItems[$boxItem->sku_id] ?? 0) + (int)$boxItem->qty;
-            }
-        }
+        // foreach ($shipment['boxes'] as $box) {
+        //     foreach ($box['box_items'] as $shipmentItem) {
+        //         $boxItems[$shipmentItem['sku_id']] = ($boxItems[$shipmentItem['sku_id']] ?? 0) + $shipmentItem['qty'];
+        //     }
+        // }
+
 
         $fulfillmentResponse = [];
         $trackingNumber = $shipment->tracking_number ?? '1234567890123';
 
-        $shopifyFulfilResponse = $this->getHttp(
-            "orders/{$shopifyOrder->id}/fulfillment_orders.json",
-            []
-        );
-
-        if (empty($shopifyFulfilResponse['fulfillment_orders'])) {
+        $shopifyFulfilResponse = $shopifyOrder['fulfillmentOrders']['edges'][0]['node'];
+        Log::info(json_encode($shopifyFulfilResponse ));
+        Log::info('fulfil');
+        if (empty($shopifyFulfilResponse)) {
             return ['message' => 'No fulfillment orders found for this Shopify order', 'error' => 1];
         }
-
-        foreach ($shopifyFulfilResponse['fulfillment_orders'] as $fulfillmentOrder) {
-            $location = Setting::where('type', 'shopify')
-                ->where('code', 'shopify_location')
-                ->value('value');
-
-            if (!$location) {
-                continue;
-            }
-
-            if (is_string($location)) {
-                $decoded = json_decode($location, true);
-                if (json_last_error() === JSON_ERROR_NONE && isset($decoded[0]['name'])) {
-                    $shopifyLocationId = $decoded[0]['name']; 
-                } else {
-                    $shopifyLocationId = $location; 
-                }
-            } else {
-                $shopifyLocationId = $location;
-            }
-
-            if ($pickticketWarehouse != $shopifyLocationId) {
-                continue;
-            }
-
             $lineItemsByFulfillmentOrder = [];
 
-            foreach ($fulfillmentOrder['line_items'] as $fulfillLineItem) {
-                if ($fulfillLineItem['fulfillable_quantity'] == 0) {
-                    continue;
-                }
+            foreach ($shopifyFulfilResponse['lineItems']['edges'] as $fulfillLineItem) {
+                $lineItemNode = $fulfillLineItem['node'];
 
-                $productVariant = ProductVariant::where(
-                    'shopify_inventory_item_id',
-                    $fulfillLineItem['inventory_item_id']
-                )->first();
+                $inventoryItemId = $lineItemNode['lineItem']['variant']['inventoryItem']['id'] ?? null;
+                if ($inventoryItemId) {
+                    $inventoryItemId = basename($inventoryItemId); 
+                }
+                Log::info("Inventory Item ID: $inventoryItemId");
+                $productVariant = ProductVariant::where('shopify_inventory_item_id', $inventoryItemId)->first();
+                Log::info("Product Variant:".json_encode($productVariant));
 
                 if ($productVariant) {
-                    $quantity = $boxItems[$productVariant->sku_id] ?? 0;
+                    $quantity = $lineItemNode['remainingQuantity'] ?? 0;
                     if ($quantity > 0) {
                         $lineItemsByFulfillmentOrder[] = [
-                            "id"       => "gid://shopify/FulfillmentOrderLineItem/" . $fulfillLineItem['id'],
+                            "id"       => $lineItemNode['id'],   
                             "quantity" => $quantity,
                         ];
                     }
                 }
             }
 
-            if (empty($lineItemsByFulfillmentOrder)) {
-                continue;
-            }
-
             $variables = [
                 "fulfillment" => [
                     "notifyCustomer" => true,
                     "lineItemsByFulfillmentOrder" => [
-                        "fulfillmentOrderId" => "gid://shopify/FulfillmentOrder/" . $fulfillmentOrder['id'],
+                        "fulfillmentOrderId" =>  $shopifyFulfilResponse['id'],
                         "fulfillmentOrderLineItems" => $lineItemsByFulfillmentOrder,
                     ],
                     "trackingInfo" => [
@@ -742,8 +730,8 @@ Log::info("shopifyOrderResponse".json_encode($shopifyOrderResponse));
                 "message" => "Fulfilled By MagicForce",
             ];
 
-            $request = [
-                'query' => 'mutation fulfillmentCreateV2($fulfillment: FulfillmentV2Input!) {
+            $response = $this->getHttp(
+                'mutation fulfillmentCreateV2($fulfillment: FulfillmentV2Input!) {
                     fulfillmentCreateV2(fulfillment: $fulfillment) {
                         fulfillment {
                             id
@@ -755,26 +743,17 @@ Log::info("shopifyOrderResponse".json_encode($shopifyOrderResponse));
                         }
                     }
                 }',
-                'variables' => $variables,
-            ];
+                $variables
+            );
 
-            $response = $this->shopifyGraphQL($request, 'create fulfillment', $shopifyOrder->id, [], $site);
 
-            $errorMessages = [];
-            if (!empty($response->data->fulfillmentCreateV2->userErrors)) {
-                foreach ($response->data->fulfillmentCreateV2->userErrors as $err) {
-                    $errorMessages[] = "Field: " . implode(', ', $err->field) . " - " . $err->message;
-                }
-                $fulfillmentResponse[$fulfillmentOrder['id']] = implode("; ", $errorMessages);
-                $error = 1;
-            } elseif (!empty($response->errors)) {
-                $fulfillmentResponse[$fulfillmentOrder['id']] = $response->errors[0]->message;
-                $error = 1;
-            } else {
-                $fulfillmentResponse[$fulfillmentOrder['id']] = "Order fulfilled successfully";
-            }
+            // $response = $this->getHttp($response);
+        Log::info(json_encode($response));
+    
+        if (empty($response['errors']) && empty($response['data']['fulfillmentCreateV2']['userErrors'])) {
+            AmOrder::where('shopify_order_id', $shopifyOrder['id'])
+                ->update(['shopify_fulfillment_status' => 'FULFILLED']);
         }
-
         $responseString = '';
         foreach ($fulfillmentResponse as $id => $message) {
             $responseString .= "Fulfillment Order ID {$id}: {$message}\n";

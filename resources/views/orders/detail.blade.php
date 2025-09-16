@@ -74,6 +74,7 @@
                         <div class="col-6 text-end">Total Amount:</div>
                         <div class="col-6">${{ number_format($order->shopify_shipping_total, 2) }}</div>
                     </div>
+                    <button class="btn btn-primary"></button>
                 </div>
             </div>
         </div>

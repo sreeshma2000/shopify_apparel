@@ -27,8 +27,8 @@ class OrderController extends Controller
                 'am_order_id',
                 'shopify_order_id',
                 'name',
-                'customer_po',
-                'email',
+                'pick_ticket_id',  
+                'ship_id',
                 'amount',
                 'shopify_fulfillment_status',
                 'fulfillment_status'

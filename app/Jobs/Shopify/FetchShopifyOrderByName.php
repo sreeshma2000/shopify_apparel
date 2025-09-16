@@ -2,12 +2,13 @@
 
 namespace App\Jobs\Shopify;
 
+use App\Traits\Shopify\ShopifyHelper;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
 class FetchShopifyOrderByName implements ShouldQueue
 {
-    use Queueable;
+    use Queueable,ShopifyHelper;
 protected $orderId;
     /**
      * Create a new job instance.
@@ -22,6 +23,6 @@ protected $orderId;
      */
     public function handle(): void
     {
-        $this->getShopifyOrderByName($this->orderId);
+        $this->getShopifyOrderById($this->orderId);
     }
 }
