@@ -26,7 +26,7 @@ class CreateApparelOrders extends Command
                 ->first();
 
             if ($shopifyOrder) {
-                $response = $this->getOrdersByOrderId($shopifyOrder->shopify_order_id);
+                $response = $this->getAmOrdersByCustomerPo($shopifyOrder->shopify_order_id);
               //  CreateApparelmagicOrders::dispatch($shopifyOrder);
                 if (empty($response['response'])) {
                      $this->info("create");
@@ -34,7 +34,6 @@ class CreateApparelOrders extends Command
                 } else {
                     $this->info("update");
                     $item = $response['response'][0];
-
                     $orderDetail = $this->storeAmOrder($shopifyOrder, $item);
                     $am_order_id = $am_order_id = $shopifyOrder->am_order_id;
                     if (!empty($orderDetail) && ($order['credit_status'] ?? '') != 'Pending') {

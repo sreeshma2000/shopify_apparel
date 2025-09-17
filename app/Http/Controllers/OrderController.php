@@ -355,7 +355,9 @@ class OrderController extends Controller
             try {
                 $order = AmOrder::with('order_items')->findOrFail($request->order_id);
                 $response = $this->createAmRefund($order);
-
+                if(!empty($response)){
+                   $order->update(['refund_id'=>$response['refund_id']]);
+                }
                 return response()->json([
                     'status'  => true,
                     'message' => 'Refund created successfully',

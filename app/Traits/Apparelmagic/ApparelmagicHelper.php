@@ -639,13 +639,14 @@ trait ApparelmagicHelper
 
             if (!empty($response) && !isset($response['status'])) {
                 $amOrders = $response['response'];
-                info("am order response" . json_encode($amOrders));
+                info("am order response1" . json_encode($amOrders));
                 foreach ($amOrders as $order) {
-                    $orderDetail = $this->storeAmOrder($shopifyOrder, $order);
-
+                    $orderDetail = $this->storeAmOrder($shopifyOrder,$order);
+                      info(json_encode($orderDetail));
                     if (!empty($orderDetail) && ($order['credit_status'] ?? '') != 'Pending') {
                         if ($orderDetail->allocated == 0) {
-                            $amOrder = $this->getOrdersByOrderId($orderDetail->shopify_order_id);
+                             info($orderDetail->am_order_id);
+                            $amOrder = $this->getOrdersByOrderId($orderDetail->am_order_id);
                             $amItems = collect($amOrder->order_items);
                             $items   = $amItems->where('qty_open', '>', 0);
                             $itemIds = $items->pluck('id')->toArray();
@@ -771,11 +772,34 @@ trait ApparelmagicHelper
                 ]
                 ];
             $response=$this->apparelMagicApiRequest($url,$params);
+            Log::info("response order By Id ".$orderId.json_encode($response));
+            return $response;
+
+    }
+    public function getAmOrdersByCustomerPo($orderId)
+    {
+        $settings = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
+        $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+        $token = $settings->firstWhere('code', 'apparelmagic_token')->value;
+        $time = time();
+        $url = $apparelUrl . '/orders';
+           $params = [
+            'time' => (string) $time,
+            'token' => (string) $token,
+              'parameters' => [
+                    [
+                        'field' => 'customer_po',
+                        'value' =>$orderId,
+                        'operator' => '=',
+                        'include_type' => 'AND'
+                    ],
+                ]
+                ];
+            $response=$this->apparelMagicApiRequest($url,$params);
             Log::info("response customer_po".$orderId.json_encode($response));
             return $response;
 
     }
-
     public function allocateAmOrder($orderDetail, $itemIds)
     {
         Log::info("itemsIds: " . json_encode($itemIds));
@@ -906,6 +930,7 @@ trait ApparelmagicHelper
             ];
 
             $baseUrl = $apparelUrl . '/shipments';
+            Log::info('shipments payload'.json_encode($params));
             $shipments = $this->apparelMagicApiRequest($baseUrl, $params);
             Log::info("Apparel shipments response: " . json_encode($shipments));
             return $shipments['response'] ?? [];
@@ -995,7 +1020,7 @@ trait ApparelmagicHelper
                    $pickticketResponse = $this->getAmPickTicket($pickticketId);
                    $pickticket = $pickticketResponse['response'][0] ?? $pickticketResponse;
                }
-               $this->createAMInvoiceFromShipment($order, $pickticketId);
+               $this->createorderInvoiceFromShipment($order, $pickticketId);
             }
 
             return ['ship_id' => $shipId ?? null];
@@ -1006,7 +1031,7 @@ trait ApparelmagicHelper
         }
     }
 
-    public function createAMInvoiceFromShipment($order, $pickticketId)
+    public function createorderInvoiceFromShipment($order, $pickticketId)
     {
         try {
             Log::info("invoice starting");
@@ -1028,7 +1053,7 @@ trait ApparelmagicHelper
             }
 
             if ($orderIdToCheck) {
-                $existingInvoices = $this->getAmInvoicesByOrderId($orderIdToCheck);
+                $existingInvoices = $this->getorderInvoicesByOrderId($orderIdToCheck);
                 Log::info("Existing invoices for Order {$orderIdToCheck}: " . json_encode($existingInvoices));
 
                 if (!empty($existingInvoices) && isset($existingInvoices[0]['invoice_id'])) {
@@ -1037,7 +1062,8 @@ trait ApparelmagicHelper
                         $order->update(['am_invoice_id' => $invoice['invoice_id']]);
                         Log::info("Order ID {$order->id} updated with Invoice ID {$invoice['invoice_id']}");
                     }
-                    return $invoice;
+             
+                   // return $invoice;
                 } else {
                     Log::info("creating new invoice for Order {$orderIdToCheck}");
 
@@ -1079,6 +1105,7 @@ trait ApparelmagicHelper
                     Log::info("Invoice Params for Pickticket {$pickticketId}: " . json_encode($invoiceParams));
 
                     $invoiceResponse = $this->apparelMagicApiPostRequest($invoiceUrl, $invoiceParams);
+                    $invoice=$invoiceResponse['response'][0];
                     Log::info("Invoice API Response for Pickticket {$pickticketId}: " . json_encode($invoiceResponse));
 
                     if (!empty($invoiceResponse['response'][0]['invoice_id'])) {
@@ -1088,11 +1115,27 @@ trait ApparelmagicHelper
                             Log::info("Invoice ID {$invoiceId} saved in AmOrder for Pickticket {$pickticketId}");
                         }
 
-                        return $invoiceResponse['response'][0];
+                        //return $invoiceResponse['response'][0];
                     }
-
+                   
                     return ['message' => 'Invoice creation failed', 'error' => true];
                 }
+             
+                
+                ////////////payment///////
+                if (empty($order->payment_id)) {
+                    $orderPayment = $this->createorderPayment($invoice);
+                    $order->payment_id = $orderPayment['payment_id'];
+                    $order->save();
+                    $responses[][] = 'AM payment created - ' . $orderPayment->payment_id;
+                } else {
+                    $orderPayment = $this->getorderPayment($order->shopify_order_id);
+                    dd($orderPayment[0]['payment_id']);
+                    $order->payment_id = $orderPayment['payment_id'];
+                    $order->save();
+                    $responses[][] = 'AM payment already created ID - ' . $order->am_payment_id;
+                }
+
             }
 
             return ['message' => 'No pick ticket found', 'error' => true];
@@ -1102,7 +1145,7 @@ trait ApparelmagicHelper
             return ['message' => $e->getMessage(), 'error' => true];
         }
     }
-    public function getAmInvoicesByOrderId($orderId)
+    public function getorderInvoicesByOrderId($orderId)
     {
         try {
             Log::info("Fetching all invoices for Order ID: {$orderId}");
@@ -1126,7 +1169,7 @@ trait ApparelmagicHelper
 
             $baseUrl = $apparelUrl . '/invoices';
             $invoice = $this->apparelMagicApiRequest($baseUrl, $params);
-
+          
             Log::info("Apparel invoice response for Order {$orderId}: " . json_encode($invoice));
 
             return $invoice['response'] ?? [];
@@ -1337,7 +1380,20 @@ trait ApparelmagicHelper
             $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
             $token = $settings->firstWhere('code', 'apparelmagic_token')->value;
             $time = time();
-            
+            $url = $apparelUrl.'/credit_memos/'.$order->credit_memo_id.'/refund';
+        
+            $params = [
+                'time' => (string) $time,
+                'token' => (string) $token,
+                'gl_acct' => "1000",
+                'amount' => "0",
+            ];
+            $orderrefund = $this->apparelMagicApiPutRequest($url, $params);
+            info("cancelled order response" . json_encode($orderrefund));
+            if (!empty($orderrefund['response']) && is_array($orderrefund['response'])) {
+                return $orderrefund['response'][0];
+                
+            }
         }
         catch(Exception $e)
         {
@@ -1348,4 +1404,81 @@ trait ApparelmagicHelper
             ];
         }
     }
+    public function createorderPayment($orderInvoice)
+    {
+       info('paymet '.json_encode($orderInvoice['customer_id']));
+       
+        $amorder=AmOrder::where('am_order_id',$orderInvoice['order_id'])->first();
+       
+        $paymentRequest = [];
+        $paymentRequest['header']['customer_id'] = $orderInvoice['customer_id']; //$request->customer_id;
+        $paymentRequest['header']['reference'] = $orderInvoice['order_id']; //$request->customer_id;
+        $paymentRequest['header']['shopify_id'] = $amorder->shopify_order_id; //$request->customer_id;
+        $paymentRequest['header']['reference'] = $orderInvoice['order_id']; //$request->customer_id;
+        $paymentRequest['header']['amt_dr'] = $orderInvoice['balance'];
+        $paymentRequest['header']['gl_acct'] = '1010';
+        $paymentRequest['header']['currency_id'] = $orderInvoice['currency_id'];
+        $paymentRequest['header']['balance'] = 0;
+        $paymentRequest['header']['notes'] = $orderInvoice['notes'];
+        $paymentRequest['header']['payment_type'] = 'Shopify Order Payment';
+        $paymentRequest['invoices'][] = ['invoice_id' => $orderInvoice['invoice_id'], 'amount_applied' => $orderInvoice['balance']];
+        $params[0] = $paymentRequest;
+        $settings = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
+        $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+        $token = $settings->firstWhere('code', 'apparelmagic_token')->value;
+        $time = time();
+        $url = $apparelUrl . '/payments';
+        $params = [
+            'time'   => (string) $time,
+            'token'  => (string) $token,
+            'header' => $paymentRequest['header'],
+            'invoices'  => $paymentRequest['invoices'],
+        ];
+        $paymentResponse = $this->apparelMagicApiPostRequest($url, $params);
+        log::info('Reaponse'.json_encode($paymentResponse));
+        if ($paymentResponse['response']) {
+            return $paymentResponse['response'][0];
+        } else {
+
+            return [];
+        }
+    }
+      public function getorderPayment($orderId)
+    {
+        try {
+            Log::info("Fetching all payment for Order ID: {$orderId}");
+            $settings   = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
+            $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+            $token      = $settings->firstWhere('code', 'apparelmagic_token')->value;
+            $time       = time();
+
+            $params = [
+                'time'  => (string) $time,
+                'token' => (string) $token,
+                'parameters' => [
+                    [
+                        'field'        => 'shopify_id',
+                        'operator'     => '=',
+                        'include_type' => 'AND',
+                        'value'        => $orderId,
+                    ]
+                ]
+            ];
+
+            $baseUrl = $apparelUrl . '/payments';
+            $paymentResponse = $this->apparelMagicApiRequest($baseUrl, $params);
+          
+            Log::info("Apparel payment response for Order {$orderId}: " . json_encode($paymentResponse));
+            if ($paymentResponse['response']) {
+            return $paymentResponse['response'][0];
+            } else {
+
+                return [];
+            }
+        } catch (Exception $e) {
+            Log::error("Error fetching apparel invoices for Order {$orderId}: " . $e->getMessage());
+            return ['message' => $e->getMessage(), 'error' => true];
+        }
+    }
+
 }
