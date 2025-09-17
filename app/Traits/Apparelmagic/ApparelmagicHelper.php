@@ -1329,5 +1329,23 @@ trait ApparelmagicHelper
         }
     }
 
-
+    public function createAmRefund($order)
+    {
+        Log::info("Starting createAmRefund");
+        try{
+            $settings = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
+            $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+            $token = $settings->firstWhere('code', 'apparelmagic_token')->value;
+            $time = time();
+            
+        }
+        catch(Exception $e)
+        {
+            Log::error('Error in createAmRefund: ' . $e->getMessage());
+            return [
+                'status' => 'failure',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
 }
