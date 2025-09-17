@@ -63,4 +63,9 @@ class AmOrder extends Model
     public function order_items(){
        return $this->hasMany(AmOrderItem::class,'shopify_order_id','shopify_order_id');
     }
+    public function returns()
+    {
+        return $this->hasMany(AmReturn::class, 'am_order_id', 'am_order_id');
+    }
+
 }

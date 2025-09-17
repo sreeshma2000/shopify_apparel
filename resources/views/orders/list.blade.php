@@ -191,6 +191,24 @@
   </div>
 </div>
 
+<div class="modal fade" id="cancelOrderModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirm Cancel</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        Are you sure you want to cancel this order?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-danger" id="confirmCancelBtn">Yes, Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 @endsection
 @section('script')
 <script src="{{ url('libs/dataTable/datatables.min.js') }}"></script>
@@ -373,7 +391,6 @@ $(document).on("click", "#confirmAddShipmentBtn", function() {
     });
 });
 
-// Open modal and set order id
 $(document).on("click", ".fulfil-order-btn", function () {
     let orderId = $(this).data("id");
     $("#fulfil_order_id").val(orderId);
@@ -381,7 +398,6 @@ $(document).on("click", ".fulfil-order-btn", function () {
     $("#fulfilOrderModal").modal("show");
 });
 
-// Confirm fulfilment
 $(document).on("click", "#confirmFulfilBtn", function () {
     let btn = $(this);
     let orderId = $("#fulfil_order_id").val();
@@ -425,6 +441,43 @@ $(document).on("click", "#confirmFulfilBtn", function () {
             btn.prop("disabled", false);
             btn.find(".btn-text").text("Confirm");
             btn.find(".spinner-border").addClass("d-none");
+        }
+    });
+});
+
+let selectedOrderId = null;
+
+$(document).on("click", ".cancel-order-btn", function () {
+    selectedOrderId = $(this).data("id"); 
+    $("#cancelOrderModal").modal("show");
+});
+
+$("#confirmCancelBtn").on("click", function () {
+    if (!selectedOrderId) return;
+
+    $.ajax({
+        url: "{{ route('order.cancel') }}", 
+        type: "POST",
+        data: {
+            _token: "{{ csrf_token() }}",
+            order_id: selectedOrderId
+        },
+        success: function (response) {
+            $("#cancelOrderModal").modal("hide");
+            Swal.fire({
+                icon: 'success',
+                title: 'Success!',
+                text: response.message || 'Order cancelled successfully.',
+            });
+            location.reload();
+        },
+        error: function () {
+            $("#cancelOrderModal").modal("hide");
+            Swal.fire({
+                icon: 'error',
+                title: 'Error!',
+                text: 'Error cancelling order!',
+            });
         }
     });
 });

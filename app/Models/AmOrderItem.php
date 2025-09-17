@@ -44,5 +44,9 @@ class AmOrderItem extends Model
     public function order(){
         return $this->belongsTo(AmOrder::class,'shopify_order_id','shopify_order_id');
     }
+    public function returns()
+    {
+        return $this->hasMany(AmReturn::class, 'am_order_id', 'order_id'); 
+    }
 
 }

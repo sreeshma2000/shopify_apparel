@@ -36,10 +36,10 @@ class CreateApparelOrders extends Command
                     $item = $response['response'][0];
 
                     $orderDetail = $this->storeAmOrder($shopifyOrder, $item);
-
+                    $am_order_id = $am_order_id = $shopifyOrder->am_order_id;
                     if (!empty($orderDetail) && ($order['credit_status'] ?? '') != 'Pending') {
                         if ($orderDetail->allocated == 0) {
-                            $response=$this->getOrdersByOrderId($orderDetail->shopify_order_id);
+                            $response=$this->getOrdersByOrderId($am_order_id);
                             Log::info("Command response".json_encode($response));
                             $amOrder = $response['response'][0];
                             // dd($amOrder['order_items']);

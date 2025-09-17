@@ -20,5 +20,9 @@ Route::post('fetch-order', [App\Http\Controllers\OrderController::class, 'fetchO
 Route::post('create-am-orders', [App\Http\Controllers\OrderController::class, 'createAmOrders'])->name('create-am-orders');
 Route::post('/orders/fulfil', [App\Http\Controllers\OrderController::class, 'fulfilfulOrder'])->name('order.fulfil');
 Route::post('/order/create-shipment', [App\Http\Controllers\OrderController::class, 'createShipmentFromOrder'])->name('order.create-shipment');
+Route::post('/orders/cancel', [App\Http\Controllers\OrderController::class, 'cancelOrder'])->name('order.cancel');
+Route::post('/orders/create-return', [App\Http\Controllers\OrderController::class, 'createReturn'])->name('orders.create-return');
+Route::post('/orders/create-credit-memo', [App\Http\Controllers\OrderController::class, 'createCreditMemo'])->name('orders.create-credit-memo');
+Route::post('/orders/create-refund', [App\Http\Controllers\OrderController::class, 'createRefund'])->name('orders.create-refund');
 
 });

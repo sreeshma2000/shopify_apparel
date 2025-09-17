@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\Shopify\GetShopifyOrders;
 use App\Models\AmOrder;
 use App\Models\AmOrderItem;
+use App\Models\AmReturn;
 use App\Models\Setting;
 use App\Traits\Apparelmagic\ApparelmagicHelper;
 use Illuminate\Http\Request;
@@ -31,24 +32,38 @@ class OrderController extends Controller
                 'ship_id',
                 'amount',
                 'shopify_fulfillment_status',
+                'is_cancelled',
                 'fulfillment_status'
             )->orderBy('id', 'asc');
-
             return DataTables::of($query)
                 ->addColumn('action', function ($order) {
-                    return '
-                        <div class="d-flex">
-                         <button class="btn btn-sm btn-success fulfil-order-btn" 
-                                data-id="' . $order->id . '">
-                                Fulfil
-                            </button>
-                            <a href="' . route('order.show', $order->id) . '" 
-                                class="btn btn-sm btn-clean btn-icon text-end" 
-                                title="Show">
-                                <i class="fa fa-eye"></i>
-                            </a>
-                        </div>';
+                    // dd($order->is_cancelled);
+
+                    $buttons = '<div class="d-flex">';
+
+                    $buttons .= '<button class="btn btn-sm btn-success fulfil-order-btn" 
+                                    data-id="' . $order->id . '">
+                                    Fulfil
+                                </button>';
+
+                    if (empty($order->ship_id) && $order->is_cancelled == 0) {
+                        $buttons .= '<button class="btn btn-sm btn-danger ms-2 cancel-order-btn" 
+                                        data-id="' . $order->id . '">
+                                        Cancel
+                                    </button>';
+                    }
+
+                    $buttons .= '<a href="' . route('order.show', $order->id) . '" 
+                                    class="btn btn-sm btn-clean btn-icon text-end ms-2" 
+                                    title="Show">
+                                    <i class="fa fa-eye"></i>
+                                </a>';
+
+                    $buttons .= '</div>';
+
+                    return $buttons;
                 })
+
                 ->rawColumns(['action'])
                 ->make(true);
         }
@@ -77,10 +92,10 @@ class OrderController extends Controller
      */
     public function show(string $id)
     {
-        $order = AmOrder::with('order_items')->findOrFail($id);
-
+        $order = AmOrder::with('order_items', 'returns')->findOrFail($id);
         return view('orders.detail', compact('order'));
     }
+
 
     /**
      * Show the form for editing the specified resource.
@@ -223,5 +238,136 @@ class OrderController extends Controller
             'message' => implode("\n", $messages)
         ]);
     }
+
+    public function cancelOrder(Request $request)
+    {
+        try {
+            $orderId = $request->order_id;
+            $order   = AmOrder::find($orderId);
+
+            if (!$order || !$order->am_order_id) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Invalid order selected',
+                ]);
+            }
+
+            if ($order->is_cancelled == 1) {
+                return response()->json([
+                    'status'  => true,
+                    'message' => 'Order is already cancelled',
+                ]);
+            }
+            $amorderId = $order->am_order_id;
+
+            $amOrderResponse = $this->getOrdersByOrderId($amorderId);
+
+            if (empty($amOrderResponse) || empty($amOrderResponse['response'])) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Order not found in ApparelMagic, cannot cancel',
+                ]);
+            }
+
+            $response = $this->cancelApparelOrder($amorderId);
+
+            if (!empty($response)) {
+                Log::info("Updating order {$order->id} as cancelled");
+                $order->update(['is_cancelled' => 1]);
+
+                return response()->json([
+                    'status'  => true,
+                    'message' => 'Order cancelled successfully',
+                    'data'    => $response
+                ]);
+            }
+
+
+            return response()->json([
+                'status'  => false,
+                'message' => 'Failed to cancel the order in ApparelMagic',
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => false,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function createReturn(Request $request)
+    {
+        $request->validate([
+            'order_id' => 'required|integer',  
+            'reason'   => 'required|string',
+        ]);
+
+        try {
+            $order = AmOrder::with('order_items')->findOrFail($request->order_id);
+            // dd($order);
+            $reason = $request->reason;
+            $response = $this->createAmReturn($order, $reason);
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Return created successfully',
+                'data'    => $response
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function createCreditMemo(Request $request)
+    {
+        $request->validate([
+                'order_id' => 'required|integer',  
+            ]);
+
+            try {
+                $order = AmOrder::with('order_items')->findOrFail($request->order_id);
+                // dd($order);
+                $response = $this->createAmCreditMemo($order);
+
+                return response()->json([
+                    'status'  => true,
+                    'message' => 'Credit memo created successfully',
+                    'data'    => $response
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => $e->getMessage()
+                ], 500);
+            }
+    }
+
+    public function createRefund(Request $request)
+    {
+        $request->validate([
+                'order_id' => 'required|integer',  
+            ]);
+
+            try {
+                $order = AmOrder::with('order_items')->findOrFail($request->order_id);
+                $response = $this->createAmRefund($order);
+
+                return response()->json([
+                    'status'  => true,
+                    'message' => 'Refund created successfully',
+                    'data'    => $response
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => $e->getMessage()
+                ], 500);
+            }
+    }
+
 
 }

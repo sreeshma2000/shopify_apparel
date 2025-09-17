@@ -607,8 +607,6 @@ trait ShopifyHelper
    
     public function shopifyFulfilment(AmOrder $order)
     {
-        $site = 1;
-
         if (!$order) {
             return ['message' => 'Order not found', 'error' => 1];
         }
@@ -668,9 +666,7 @@ trait ShopifyHelper
     public function fulfillShopifyOrder($shopifyOrder, $pickticket)
     {
         Log::info("fulfillment started for order:" . json_encode($shopifyOrder));
-        $boxItems = [];
         $error = 0;
-        $pickticketWarehouse = $pickticket['warehouse_id'] ?? null;
 
         if ($shopifyOrder['displayFulfillmentStatus'] === 'FULFILLED') {
             return ['message' => 'Order already fulfilled'];
@@ -684,7 +680,7 @@ trait ShopifyHelper
 
 
         $fulfillmentResponse = [];
-        $trackingNumber = $shipment->tracking_number ?? '1234567890123';
+        $trackingNumber = '1234567890123';
 
         $shopifyFulfilResponse = $shopifyOrder['fulfillmentOrders']['edges'][0]['node'];
         Log::info(json_encode($shopifyFulfilResponse ));
