@@ -33,7 +33,9 @@ class OrderController extends Controller
                 'amount',
                 'shopify_fulfillment_status',
                 'is_cancelled',
-                'fulfillment_status'
+                'fulfillment_status',
+                'payment_id',
+                'allocated'
             )->orderBy('id', 'asc');
             return DataTables::of($query)
              ->addColumn('status_message', function ($order) {
@@ -47,6 +49,8 @@ class OrderController extends Controller
                         return '<span class="badge bg-warning text-dark">Apparel Order allocated</span>';
                     } elseif (!empty($order->shopify_fulfillment_status == 'FULFILLED')) {
                         return '<span class="badge bg-warning text-dark">Shopify order fulfilled</span>';
+                    }elseif (!empty($order->payment_id)) {
+                        return '<span class="badge bg-warning text-dark">Payment Generated</span>';
                     }
                     return '<span class="badge bg-secondary">Unknown</span>';
                 })

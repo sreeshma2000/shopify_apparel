@@ -58,8 +58,8 @@ class AmOrder extends Model
         'shopify_shipping_total',
         'shopify_created_at',
         'amount_open',
-        'payment_status',
-        'refund_id',
+        'payment_id',
+        'refund_status',
     ];
 
     public function order_items(){

@@ -63,8 +63,8 @@ return new class extends Migration
             $table->string('shopify_notes')->nullable();
             $table->string('shopify_shipping_total')->nullable();
             $table->date('shopify_created_at')->nullable();
-            $table->string("payment_status")->default(0);
-            $table->string("refund_id")->nullable();
+            $table->string("payment_id")->default(0);
+            $table->string("refund_status")->nullable();
             $table->timestamps();
         });
     }

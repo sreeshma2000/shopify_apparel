@@ -31,11 +31,11 @@
                             <span><strong>Order No:</strong>
                                 {{ $order->shopify_order_name ?? $order->shopify_order_id }}</span>
                             {{-- <span class="badge bg-success">{{ $order->fulfillment_status ?? 'Pending' }}</span> --}}
-                            <span class="badge @if($order->refund_id == 1) bg-success 
+                            <span class="badge @if($order->refund_status == 1) bg-success 
                                 @elseif($order->returns->isNotEmpty() && $order->returns->first()->credit_memo_id) bg-primary
                                 @elseif($order->returns->isNotEmpty()) bg-danger
                                 @else bg-secondary @endif">
-                                @if($order->refund_id == 1)
+                                @if($order->refund_status == 1)
                                     Refunded
                                 @elseif($order->returns->isNotEmpty() && $order->returns->first()->credit_memo_id)
                                     Returned (Credit Memo Generated)
@@ -169,7 +169,7 @@
                         @else
                             <span class="text-muted">Not Available</span>
                         @endif
-                        @if($order->refund_id != 1)
+                        @if($order->refund_status != 1)
                             <div class="d-flex justify-content-center align-items-center">
                                 <button class="btn btn-danger refund-button" data-id="{{ $order->id }}">
                                     Refund
