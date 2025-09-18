@@ -349,26 +349,39 @@ class OrderController extends Controller
     public function createRefund(Request $request)
     {
         $request->validate([
-                'order_id' => 'required|integer',  
-            ]);
+            'order_id' => 'required|integer',  
+        ]);
 
-            try {
-                $order = AmOrder::with('order_items')->findOrFail($request->order_id);
-                $response = $this->createAmRefund($order);
-                if(!empty($response)){
-                   $order->update(['refund_id'=>$response['refund_id']]);
-                }
+        try {
+            $order = AmOrder::with('order_items')->findOrFail($request->order_id);
+            $response = $this->createAmRefund($order);
+
+            if (!empty($response['refund_id'])) {
+                $order->update(['refund_status' => $response['refund_id']]);
                 return response()->json([
                     'status'  => true,
                     'message' => 'Refund created successfully',
                     'data'    => $response
                 ]);
-            } catch (\Exception $e) {
+            }
+
+            if (!empty($response['meta']['errors'])) {
                 return response()->json([
                     'status'  => false,
-                    'message' => $e->getMessage()
-                ], 500);
+                    'message' => implode("\n", $response['meta']['errors']), 
+                ]);
             }
+
+            return response()->json([
+                'status'  => false,
+                'message' => $response['message'] ?? 'Refund failed',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 
 

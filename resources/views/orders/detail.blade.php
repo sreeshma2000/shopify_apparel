@@ -242,9 +242,9 @@
                 },
                 success: function (response) {
                     Swal.fire({
-                        icon: 'success',
-                        title: 'Success!',
-                        text: response.message || 'Returned Successfully.',
+                        icon: response.status ? 'success' : 'warning',
+                        title: response.title ? 'Success!' : 'Something went wrong',
+                        text: response.message ? response.message : 'Return successfully.',
                     });
                     $('#returnModal').modal('hide');
                     $('#returnReason').val('');
@@ -281,9 +281,9 @@
                 success: function (response) {
                     $("#createCreditMemoModal").modal("hide");
                     Swal.fire({
-                        icon: "success",
-                        title: "Credit Memo Created",
-                        text: response.message || "Credit Memo created successfully."
+                        icon: response.status ? 'success' : 'warning',
+                        title: response.title ? 'Credit Memo Created' : 'Something went wrong',
+                        text: response.message ? response.message : 'Credit Memo created successfully.'
                     });
                 },
                 error: function (xhr) {
@@ -321,9 +321,9 @@
                 success: function (response) {
                     $("#createRefundModal").modal("hide"); 
                     Swal.fire({
-                        icon: "success",
-                        title: "Refund Created",
-                        text: response.message || "Refund created successfully."
+                        icon: response.status ? 'success' : 'warning',
+                        title: response.title ? 'Refund Created' : 'Something went wrong',
+                        text: response.message ? response.message : 'Refund created successfully.'
                     });
                 },
 

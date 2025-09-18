@@ -318,7 +318,7 @@ $("#fetch_orders_btn").on("click", function() {
          success: function (response) {
             $('#syncAmOrderModal').modal('hide');
              Swal.fire({
-                icon: 'success',
+                icon: response.status ? 'success' : 'warning',
                 title: 'Success!',
                 text: response.message || 'Orders synced successfully.',
             });
@@ -370,9 +370,9 @@ $(document).on("click", "#confirmAddShipmentBtn", function() {
         success: function(response) {
             $("#addShipmentModal").modal("hide");
             Swal.fire({
-                icon: "success",
-                title: "Shipment Created",
-                text: response.message || "Shipment and invoice created successfully"
+                icon: response.status ? 'success' : 'warning',
+                title: response.title ? 'Shipment Created':'Something went wrong',
+                text: response.message ? "Shipment and invoice created successfully":"Something went wrong"
             });
             $("#ordertb").DataTable().ajax.reload();
         },
@@ -424,9 +424,9 @@ $(document).on("click", "#confirmFulfilBtn", function () {
         success: function (response) {
             $("#fulfilOrderModal").modal("hide");
             Swal.fire({
-                icon: "success",
-                title: "Order fulfilled",
-                text: response.message || "Fulfilment successful"
+                icon: response.status ? 'success' : 'warning',
+                title: response.title ? 'Order fulfilled' : 'Something went wrong',
+                text: response.message ?"Fulfilment successful" : "Something went wrong"
             });
             $("#ordertb").DataTable().ajax.reload();
         },
@@ -465,9 +465,9 @@ $("#confirmCancelBtn").on("click", function () {
         success: function (response) {
             $("#cancelOrderModal").modal("hide");
             Swal.fire({
-                icon: 'success',
-                title: 'Success!',
-                text: response.message || 'Order cancelled successfully.',
+                icon: response.status ? 'success' : 'warning',
+                title: response.title ? 'Success!' : 'Something went wrong',
+                text: response.message ? response.message : 'Something went wrong.',
             });
             location.reload();
         },

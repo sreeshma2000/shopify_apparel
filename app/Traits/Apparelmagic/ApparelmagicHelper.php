@@ -1130,7 +1130,7 @@ trait ApparelmagicHelper
                     $responses[][] = 'AM payment created - ' . $orderPayment->payment_id;
                 } else {
                     $orderPayment = $this->getorderPayment($order->shopify_order_id);
-                    dd($orderPayment[0]['payment_id']);
+                    // dd($orderPayment[0]['payment_id']);
                     $order->payment_id = $orderPayment['payment_id'];
                     $order->save();
                     $responses[][] = 'AM payment already created ID - ' . $order->am_payment_id;
@@ -1390,16 +1390,22 @@ trait ApparelmagicHelper
             $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
             $token      = $settings->firstWhere('code', 'apparelmagic_token')->value;
             $time       = time();
+            $paymentresponse = $this->getorderPayment($order->shopify_order_id);
+            Log::info("paymentresponse:".json_encode($paymentresponse));
+
+            $glAcct = $paymentresponse['payment_header_lines'][0]['gl_acct'] ?? '1000';
+            $amount = $paymentresponse['payment_header_lines'][0]['amt_dr'] ?? 0;
 
             $url = $apparelUrl.'/credit_memos/'.$return->credit_memo_id.'/refund';
 
             $params = [
                 'time'    => (string) $time,
                 'token'   => (string) $token,
-                'gl_acct' => "1000",
-                'amount'  => "0", 
+                'gl_acct' => $glAcct,
+                'amount'  => $amount,
             ];
-
+            Log::info("params for refund:".json_encode($params));
+            // exit;
             $orderrefund = $this->apparelMagicApiPutRequest($url, $params);
             info("Refund order response: " . json_encode($orderrefund));
 
@@ -1423,7 +1429,6 @@ trait ApparelmagicHelper
             ];
         }
     }
-
 
     public function createorderPayment($orderInvoice)
     {
@@ -1464,7 +1469,7 @@ trait ApparelmagicHelper
             return [];
         }
     }
-      public function getorderPayment($orderId)
+    public function getorderPayment($orderId)
     {
         try {
             Log::info("Fetching all payment for Order ID: {$orderId}");
