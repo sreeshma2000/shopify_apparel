@@ -41,10 +41,12 @@ class OrderController extends Controller
 
                     $buttons = '<div class="d-flex">';
 
-                    $buttons .= '<button class="btn btn-sm btn-success fulfil-order-btn" 
-                                    data-id="' . $order->id . '">
-                                    Fulfil
-                                </button>';
+                    if (!empty($order->ship_id)) {
+                        $buttons .= '<button class="btn btn-sm btn-success fulfil-order-btn" 
+                                        data-id="' . $order->id . '">
+                                        Fulfil
+                                    </button>';
+                    }
 
                     if (empty($order->ship_id) && $order->is_cancelled == 0) {
                         $buttons .= '<button class="btn btn-sm btn-danger ms-2 cancel-order-btn" 
