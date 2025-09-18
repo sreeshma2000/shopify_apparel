@@ -373,8 +373,8 @@ $(document).on("click", "#confirmAddShipmentBtn", function() {
             $("#addShipmentModal").modal("hide");
             Swal.fire({
                 icon: response.status ? 'success' : 'warning',
-                title: response.title ? 'Shipment Created':'Something went wrong',
-                text: response.message ? "Shipment and invoice created successfully":"Something went wrong"
+                title:  'Success!',
+                text: response.message || "Shipment and invoice created successfully"
             });
             $("#ordertb").DataTable().ajax.reload();
         },

@@ -60,6 +60,7 @@ class AmOrder extends Model
         'amount_open',
         'payment_id',
         'refund_status',
+        'payment_type'
     ];
 
     public function order_items(){

@@ -65,6 +65,7 @@ return new class extends Migration
             $table->date('shopify_created_at')->nullable();
             $table->string("payment_id")->default(0);
             $table->string("refund_status")->nullable();
+            $table->string("payment_type")->nullable();
             $table->timestamps();
         });
     }

@@ -1126,12 +1126,14 @@ trait ApparelmagicHelper
                 if (empty($order->payment_id)) {
                     $orderPayment = $this->createorderPayment($invoice);
                     $order->payment_id = $orderPayment['payment_id'];
+                    $order->payment_type = $orderPayment['payment_type'] ?? null;
                     $order->save();
                     $responses[][] = 'AM payment created - ' . $orderPayment->payment_id;
                 } else {
                     $orderPayment = $this->getorderPayment($order->shopify_order_id);
                     // dd($orderPayment[0]['payment_id']);
                     $order->payment_id = $orderPayment['payment_id'];
+                    $order->payment_type = $orderPayment['payment_type'] ?? null;
                     $order->save();
                     $responses[][] = 'AM payment already created ID - ' . $order->am_payment_id;
                 }

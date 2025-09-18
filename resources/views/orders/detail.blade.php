@@ -122,7 +122,11 @@
                     <div class="card-body">
                         <h6 class="card-title mb-3">Payment</h6>
                         <div class="row mb-2">
-                            <div class="col-6 text-end">Total Amount:</div>
+                            <div class="col-6 text-end">Payment ID :</div>
+                            <div class="col-6">{{ $order->payment_id }}</div>
+                            <div class="col-6 text-end">Payment Type :</div>
+                            <div class="col-6">{{ $order->payment_type }}</div>
+                            <div class="col-6 text-end">Total Amount :</div>
                             <div class="col-6">${{ number_format($order->shopify_shipping_total, 2) }}</div>
                         </div>
                         <div class="d-flex justify-content-between">
