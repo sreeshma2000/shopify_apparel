@@ -111,7 +111,6 @@
                             <div class="col-6">${{ number_format($order->shopify_shipping_total, 2) }}</div>
                         </div>
                         <div class="d-flex justify-content-between">
-                            @if (!empty($order->ship_id))
                                 @if ($order->returns->isEmpty())
                                     <button class="btn btn-warning return-btn" data-id="{{ $order->id }}">
                                         Return
@@ -127,7 +126,6 @@
                                         Credit Memo
                                     </button>
                                 @endif
-                            @endif
                         </div>
                     </div>
 
@@ -160,14 +158,13 @@
                         @else
                             <span class="text-muted">Not Available</span>
                         @endif
-                        @if ($order->is_cancelled == 1)
+                        @if($order->refund_status == 1)
                             <div class="d-flex justify-content-center align-items-center">
                                 <button class="btn btn-danger refund-button" data-id="{{ $order->id }}">
                                     Refund
                                 </button>
                             </div>
                         @endif
-
                     </div>
 
                 </div>
