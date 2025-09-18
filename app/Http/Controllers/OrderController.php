@@ -36,6 +36,20 @@ class OrderController extends Controller
                 'fulfillment_status'
             )->orderBy('id', 'asc');
             return DataTables::of($query)
+             ->addColumn('status_message', function ($order) {
+                    if (!empty($order->pick_ticket_id)) {
+                        return '<span class="badge bg-success">Pickticket generated</span>';
+                    } elseif (!empty($order->am_order_id)) {
+                        return '<span class="badge bg-info">ApparelMagic order created</span>';
+                    } elseif (!empty($order->shopify_order_id)) {
+                        return '<span class="badge bg-warning text-dark">Shopify order fetched</span>';
+                    } elseif (!empty($order->allocated == 1)) {
+                        return '<span class="badge bg-warning text-dark">Apparel Order allocated</span>';
+                    } elseif (!empty($order->shopify_fulfillment_status == 'FULFILLED')) {
+                        return '<span class="badge bg-warning text-dark">Shopify order fulfilled</span>';
+                    }
+                    return '<span class="badge bg-secondary">Unknown</span>';
+                })
                 ->addColumn('action', function ($order) {
                     // dd($order->is_cancelled);
 
@@ -66,7 +80,7 @@ class OrderController extends Controller
                     return $buttons;
                 })
 
-                ->rawColumns(['action'])
+                ->rawColumns(['action','status_message'])
                 ->make(true);
         }
 

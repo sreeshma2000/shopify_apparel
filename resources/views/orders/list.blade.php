@@ -78,6 +78,7 @@
                             <th>Amount</th>
                             <th>Shopify Fulfillment status</th> 
                             <th>Apparel Fulfillment status</th>
+                            <th>Status</th>
                             <th>Action</th>                           
                         </tr>
                     </thead>
@@ -235,6 +236,7 @@ var $ordertable = $('#ordertb').DataTable({
         { data:'amount',name:'amount'},
         { data:'shopify_fulfillment_status',name:'shopify_fulfillment_status'},
         { data:'fulfillment_status',name:'fulfillment_status'},
+        { data: 'status_message', name: 'status_message' },
         { data:'action',name:'action'}
 
     ],
