@@ -103,7 +103,7 @@
           <div class="form-check mb-3">
             <input class="form-check-input" type="radio" name="sync_option" id="sync_single" value="single" checked>
             <label class="form-check-label" for="sync_single">
-              Sync a specific Order
+              Sync a specific Shopify Order
             </label>
             <input type="text" class="form-control mt-2" id="shopify_order_id" name="shopify_order_id" placeholder="Shopify Order ID">
           </div>
@@ -111,7 +111,7 @@
           <div class="form-check">
             <input class="form-check-input" type="radio" name="sync_option" id="sync_all" value="all">
             <label class="form-check-label" for="sync_all">
-              Sync all orders
+              Sync all Shopify Orders
             </label>
           </div>
 
@@ -174,7 +174,7 @@
       <div class="modal-body">
         <form id="addShipmentForm">
           <div class="mb-3">
-            <label for="order_ids" class="form-label">Order IDs (comma separated)</label>
+            <label for="order_ids" class="form-label">AM Order IDs (comma separated)</label>
             <textarea class="form-control" id="order_ids" name="order_ids" rows="3" placeholder="Enter Order IDs"></textarea>
           </div>
         </form>
