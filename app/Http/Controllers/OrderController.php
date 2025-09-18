@@ -366,15 +366,29 @@ class OrderController extends Controller
 
         try {
             $order = AmOrder::with('order_items')->findOrFail($request->order_id);
-            // dd($order);
             $reason = $request->reason;
             $response = $this->createAmReturn($order, $reason);
+
+            if (!empty($response['meta']['errors'])) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => implode("\n", $response['meta']['errors']), 
+                ]);
+            }
+
+            if (!empty($response['message'])) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => $response['message'] ?? 'Return failed',
+                ]);
+            }
 
             return response()->json([
                 'status'  => true,
                 'message' => 'Return created successfully',
                 'data'    => $response
             ]);
+
         } catch (\Exception $e) {
             return response()->json([
                 'status'  => false,
@@ -383,28 +397,43 @@ class OrderController extends Controller
         }
     }
 
+
     public function createCreditMemo(Request $request)
     {
         $request->validate([
-                'order_id' => 'required|integer',  
-            ]);
+            'order_id' => 'required|integer',  
+        ]);
 
-            try {
-                $order = AmOrder::with('order_items')->findOrFail($request->order_id);
-                // dd($order);
-                $response = $this->createAmCreditMemo($order);
+        try {
+            $order = AmOrder::with('order_items')->findOrFail($request->order_id);
+            $response = $this->createAmCreditMemo($order);
 
-                return response()->json([
-                    'status'  => true,
-                    'message' => 'Credit memo created successfully',
-                    'data'    => $response
-                ]);
-            } catch (\Exception $e) {
+            if (!empty($response['meta']['errors'])) {
                 return response()->json([
                     'status'  => false,
-                    'message' => $e->getMessage()
-                ], 500);
+                    'message' => implode("\n", $response['meta']['errors']), 
+                ]);
             }
+
+            if (!empty($response['message'])) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => $response['message'] ?? 'Credit memo creation failed',
+                ]);
+            }
+
+            return response()->json([
+                'status'  => true,
+                'message' => 'Credit memo created successfully',
+                'data'    => $response
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function createRefund(Request $request)
@@ -444,6 +473,4 @@ class OrderController extends Controller
             ], 500);
         }
     }
-
-
 }

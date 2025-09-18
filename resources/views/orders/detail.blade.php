@@ -263,7 +263,7 @@
                 success: function (response) {
                     Swal.fire({
                         icon: response.status ? 'success' : 'warning',
-                        title: response.title ? 'Success!' : 'Something went wrong',
+                        title: response.status ? 'success' : 'warning',
                         text: response.message ? response.message : 'Return successfully.',
                     });
                     $('#returnModal').modal('hide');
@@ -302,7 +302,7 @@
                     $("#createCreditMemoModal").modal("hide");
                     Swal.fire({
                         icon: response.status ? 'success' : 'warning',
-                        title: response.title ? 'Credit Memo Created' : 'Something went wrong',
+                        title: response.status ? 'success' : 'warning',
                         text: response.message ? response.message : 'Credit Memo created successfully.'
                     });
                 },
@@ -342,7 +342,7 @@
                     $("#createRefundModal").modal("hide"); 
                     Swal.fire({
                         icon: response.status ? 'success' : 'warning',
-                        title: response.title ? 'Refund Created' : 'Something went wrong',
+                        title: response.status ? 'Success' : 'Warning',
                         text: response.message ? response.message : 'Refund created successfully.'
                     });
                 },
