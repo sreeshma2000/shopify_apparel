@@ -319,13 +319,14 @@
                     btn.text("Processing...");
                 },
                 success: function (response) {
-                    $("#createCreditMemoModal").modal("hide");
+                    $("#createRefundModal").modal("hide"); 
                     Swal.fire({
                         icon: "success",
                         title: "Refund Created",
                         text: response.message || "Refund created successfully."
                     });
                 },
+
                 error: function (xhr) {
                     Swal.fire({
                         icon: "error",
