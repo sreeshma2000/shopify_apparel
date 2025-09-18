@@ -30,7 +30,22 @@
                         <div class="mb-3 d-flex justify-content-between align-items-center">
                             <span><strong>Order No:</strong>
                                 {{ $order->shopify_order_name ?? $order->shopify_order_id }}</span>
-                            <span class="badge bg-success">{{ $order->fulfillment_status ?? 'Pending' }}</span>
+                            {{-- <span class="badge bg-success">{{ $order->fulfillment_status ?? 'Pending' }}</span> --}}
+                            <span class="badge @if($order->refund_id == 1) bg-success 
+                                @elseif($order->returns->isNotEmpty() && $order->returns->first()->credit_memo_id) bg-primary
+                                @elseif($order->returns->isNotEmpty()) bg-danger
+                                @else bg-secondary @endif">
+                                @if($order->refund_id == 1)
+                                    Refunded
+                                @elseif($order->returns->isNotEmpty() && $order->returns->first()->credit_memo_id)
+                                    Returned (Credit Memo Generated)
+                                @elseif($order->returns->isNotEmpty())
+                                    Already Returned
+                                @else
+                                    {{ $order->fulfillment_status ?? 'Pending' }}
+                                @endif
+                            </span>
+
                         </div>
 
                         <div class="row mb-4 g-4">
@@ -115,10 +130,6 @@
                                     <button class="btn btn-warning return-btn" data-id="{{ $order->id }}">
                                         Return
                                     </button>
-                                @else
-                                    <div class="d-flex justify-content-center">
-                                        <span class="text-danger fw-bold">Already Returned</span>
-                                    </div>
                                 @endif
 
                                 @if ($order->returns->isNotEmpty() && $order->returns->first()->credit_memo_id == null)
@@ -158,7 +169,7 @@
                         @else
                             <span class="text-muted">Not Available</span>
                         @endif
-                        @if($order->refund_status == 1)
+                        @if($order->refund_id != 1)
                             <div class="d-flex justify-content-center align-items-center">
                                 <button class="btn btn-danger refund-button" data-id="{{ $order->id }}">
                                     Refund
