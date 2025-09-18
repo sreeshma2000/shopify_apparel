@@ -35,10 +35,9 @@ class CreateApparelOrders extends Command
                     $this->info("update");
                     $item = $response['response'][0];
                     $orderDetail = $this->storeAmOrder($shopifyOrder, $item);
-                    $am_order_id = $am_order_id = $shopifyOrder->am_order_id;
                     if (!empty($orderDetail) && ($order['credit_status'] ?? '') != 'Pending') {
                         if ($orderDetail->allocated == 0) {
-                            $response=$this->getOrdersByOrderId($am_order_id);
+                            $response=$this->getAmOrdersByCustomerPo($orderDetail->shopify_order_id);
                             Log::info("Command response".json_encode($response));
                             $amOrder = $response['response'][0];
                             // dd($amOrder['order_items']);
@@ -51,6 +50,14 @@ class CreateApparelOrders extends Command
                                 $orderDetail->save();
                                 Log::info("AM order allocated: " . $orderDetail->shopify_order_id);
                             } else {
+                                $response = $this->getApparelPickTicketsByOrderId($orderDetail->am_order_id);
+                                if ($response && isset($response['pick_ticket_id'])) {
+                                    $orderDetail->allocated = 1;
+                                    $orderDetail->pick_ticket_id=$response['pick_ticket_id'];
+                                    $orderDetail->save();
+
+                                }
+
                                 Log::error("Failed to allocate AM order: " . $orderDetail->shopify_order_id);
                             }
 
@@ -92,7 +99,7 @@ class CreateApparelOrders extends Command
             $shopifyOrders = AmOrder::with('order_items')->whereNotNull('shopify_order_id')->get();
 
             foreach ($shopifyOrders as $shopifyOrder) {
-                $response = $this->getOrdersByOrderId($shopifyOrder->shopify_order_id);
+                $response = $this->getAmOrdersByCustomerPo($shopifyOrder->shopify_order_id);
 
                 if (empty($response['response'])) {
                     CreateApparelmagicOrders::dispatch($shopifyOrder);

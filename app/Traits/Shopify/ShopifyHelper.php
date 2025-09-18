@@ -672,13 +672,6 @@ trait ShopifyHelper
             return ['message' => 'Order already fulfilled'];
         }
 
-        // foreach ($shipment['boxes'] as $box) {
-        //     foreach ($box['box_items'] as $shipmentItem) {
-        //         $boxItems[$shipmentItem['sku_id']] = ($boxItems[$shipmentItem['sku_id']] ?? 0) + $shipmentItem['qty'];
-        //     }
-        // }
-
-
         $fulfillmentResponse = [];
         $trackingNumber = '1234567890123';
 

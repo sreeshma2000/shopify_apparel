@@ -281,8 +281,10 @@ $("#fetch_orders_btn").on("click", function() {
         success: function (response) {
             Swal.fire({
                 icon: response.status ? 'success' : 'warning',
-                title: response.message,
+                title: response.status ? 'Success!' : 'Warning!',
+                text: response.message
             });
+            $("#ordertb").DataTable().ajax.reload();
         },
         error: function (xhr) {
             Swal.fire({
@@ -300,11 +302,12 @@ $("#fetch_orders_btn").on("click", function() {
     });
 });
 
- $(document).on('click', '#syncAmOrderSubmit', function () {
+$(document).on('click', '#syncAmOrderSubmit', function () {
     var btn = $(this);
     var orderId = $('#shopify_order_id').val();
     var sync_all = $('#sync_all').is(':checked') ? 1 : 0;      
     $.ajax({
+
         url: "{{ route('create-am-orders') }}",
         type: 'POST',
         data: {
@@ -317,33 +320,34 @@ $("#fetch_orders_btn").on("click", function() {
             btn.find(".btn-text").text("Syncing...");
             btn.find(".spinner-border").removeClass("d-none");
         },
-         success: function (response) {
+        success: function (response) {
             $('#syncAmOrderModal').modal('hide');
-             Swal.fire({
+            Swal.fire({
                 icon: response.status ? 'success' : 'warning',
-                title: 'Success!',
+                title: response.status ? 'success' : 'warning',
                 text: response.message || 'Orders synced successfully.',
             });
-         },
+            $("#ordertb").DataTable().ajax.reload();
+        },
         error: function (xhr) {
-                $('#syncAmOrderModal').modal('hide');
-
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error!',
-                    text: (xhr.responseJSON && xhr.responseJSON.message) 
-                        ? xhr.responseJSON.message 
-                        : 'Failed to sync orders.',
-                });
+            $('#syncAmOrderModal').modal('hide');
+            Swal.fire({
+                icon: 'error',
+                title: 'Error!',
+                text: (xhr.responseJSON && xhr.responseJSON.message) 
+                    ? xhr.responseJSON.message 
+                    : 'Failed to sync orders.',
+            });
         },
          complete: function () {
             btn.prop("disabled", false);
             btn.find(".btn-text").text("Sync");
             btn.find(".spinner-border").addClass("d-none");
         }
-      })
+    });
+});
 
- });
+
 $(document).on("click", "#add_shipment_btn", function() {
     $("#order_ids").val(""); 
     $("#addShipmentModal").modal("show");
@@ -373,8 +377,8 @@ $(document).on("click", "#confirmAddShipmentBtn", function() {
             $("#addShipmentModal").modal("hide");
             Swal.fire({
                 icon: response.status ? 'success' : 'warning',
-                title:  'Success!',
-                text: response.message || "Shipment and invoice created successfully"
+                title: response.status ? 'Success!' : 'Warning!',
+                text: response.message
             });
             $("#ordertb").DataTable().ajax.reload();
         },
@@ -427,8 +431,8 @@ $(document).on("click", "#confirmFulfilBtn", function () {
             $("#fulfilOrderModal").modal("hide");
             Swal.fire({
                 icon: response.status ? 'success' : 'warning',
-                title: response.title ? 'Order fulfilled' : 'Something went wrong',
-                text: response.message ?"Fulfilment successful" : "Something went wrong"
+                title: response.status ? 'Order fulfilled' : 'Something went wrong',
+                text: response.message
             });
             $("#ordertb").DataTable().ajax.reload();
         },
@@ -471,6 +475,7 @@ $("#confirmCancelBtn").on("click", function () {
                 title: response.title ? 'Success!' : 'Something went wrong',
                 text: response.message ? response.message : 'Something went wrong.',
             });
+            $("#ordertb").DataTable().ajax.reload();
             location.reload();
         },
         error: function () {

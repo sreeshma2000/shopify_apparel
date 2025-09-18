@@ -1509,4 +1509,26 @@ trait ApparelmagicHelper
         }
     }
 
+    public function getApparelPickTicketsByOrderId($orderId)
+    {
+        info("getApparelPickTickets" . json_encode($orderId));
+        $settings = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
+        $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+        $token = $settings->firstWhere('code', 'apparelmagic_token')->value;
+        $time = time();
+        $url = $apparelUrl . '/pick_tickets';
+        $params = [
+            'time' => (string) $time,
+            'token' => (string) $token,
+            'order_id' => $orderId
+        ];
+        $response = $this->apparelMagicApiRequest($url, $params);
+        if (!empty($response['response']) && is_array($response['response'])) {
+            info("apparel pickticket" . json_encode($response['response'][0]));
+            return $response['response'][0];
+        }
+        return null;
+
+    }
+
 }

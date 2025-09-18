@@ -61,7 +61,7 @@ class OrderController extends Controller
 
                     $buttons = '<div class="d-flex">';
 
-                    if (!empty($order->ship_id)) {
+                    if (!empty($order->ship_id && $order->shopify_fulfillment_status !== 'FULFILLED')) {
                         $buttons .= '<button class="btn btn-sm btn-success fulfil-order-btn" data-id="' . $order->id . '">Fulfil</button>';
                     }
 
@@ -171,9 +171,24 @@ class OrderController extends Controller
                 '--orderId' => $orderId
             ]);
 
+            $status = true; 
+            $message = "Order {$orderId} processed for AM";
+
+            $order = AmOrder::where('shopify_order_id', $orderId)->first();
+
+            if ($order) {
+                if ($order->allocated == 0) {
+                    $status = false;
+                    $message = "Failed to allocate AM order: {$orderId}";
+                } elseif (empty($order->pick_ticket_id)) {
+                    $status = false;
+                    $message = "Pick Ticket not created for AM Order ID {$orderId}";
+                }
+            }
+
             return response()->json([
-                'status'  => 'success',
-                'message' => "Order {$orderId} processed for AM"
+                'status'  => $status, 
+                'message' => $message
             ]);
         }
 
@@ -192,6 +207,7 @@ class OrderController extends Controller
         ], 400);
     }
 
+
     public function fulfilfulOrder(Request $request)
     {
         try {
@@ -201,24 +217,45 @@ class OrderController extends Controller
             ]);
 
             $order = AmOrder::findOrFail($request->order_id);
+            $result = null;
+            $status = true;
+            $message = "Fulfilment triggered for Order ID {$order->am_order_id} with tracking number {$request->tracking_number}";
 
-            if($order){
+            if ($order) {
                 $result = $this->shopifyFulfilment($order);
+                Log::info("Result" . json_encode($result));
+                $userErrors = $result['data']['fulfillmentCreateV2']['userErrors'] ?? [];
 
+                $errors     = $result['errors'] ?? [];
+                if (!empty($errors) || !empty($userErrors)) {
+                    $status = false;
+                    $messages = [];
+
+                    if (!empty($errors)) {
+                        $messages = array_merge($messages, $errors);
+                    }
+
+                    if (!empty($userErrors)) {
+                        $messages = array_merge($messages, array_column($userErrors, 'message'));
+                    }
+
+                    $message = implode(', ', $messages);
+                }
             }
 
             return response()->json([
-                'status' => true,
-                'message' => "Fulfilment triggered for Order ID {$order->am_order_id} with tracking number {$request->tracking_number}",
-                'result' => $result
+                'status'  => $status,
+                'message' => $message,
+                'result'  => $result
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => $e->getMessage()
             ], 500);
         }
     }
+
     public function createShipmentFromOrder(Request $request)
     {
         $request->validate([
@@ -227,6 +264,7 @@ class OrderController extends Controller
 
         $orderIds = explode(',', $request->order_ids); 
         $messages = [];
+        $status = true; 
 
         foreach ($orderIds as $amOrderId) {
             $amOrderId = trim($amOrderId);
@@ -234,24 +272,35 @@ class OrderController extends Controller
 
             if (!$order) {
                 $messages[] = "AM Order ID {$amOrderId} not found";
+                $status = false;
                 continue;
             }
 
             $pickticketId = $order->pick_ticket_id;
             if (!$pickticketId) {
                 $messages[] = "Pick Ticket not found for AM Order ID {$amOrderId}";
+                $status = false;
                 continue;
             }
 
             $result = $this->amShipments($pickticketId);
-                Log::info("result in controller".json_encode($result));
+            Log::info("result in controller".json_encode($result));
+
+            $errors = $result['meta']['errors'] ?? $result['response']['meta']['errors'] ?? [];
+            if (!empty($errors)) {
+                $messages[] = "AM Order {$amOrderId}: " . implode(", ", $errors);
+                $status = false;
+            } else {
+                $messages[] = "AM Order {$amOrderId} shipment created successfully";
             }
+        }
 
         return response()->json([
-            'status' => true,
+            'status' => $status, 
             'message' => implode("\n", $messages)
         ]);
     }
+
 
     public function cancelOrder(Request $request)
     {
