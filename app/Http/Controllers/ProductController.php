@@ -125,16 +125,25 @@ class ProductController extends Controller
             ], 500);
         }
     }
-   public function createAmProducts(Request $request)
-{
-    $productId = $request->product_id;
-    $sync_all  = $request->sync_all;
+
+    public function createAmProducts(Request $request)
+    {
+        $productId = $request->product_id;
+        $sync_all  = $request->sync_all;
 
     if ($productId) {
         Artisan::call('create:am-products', [
             '--productId' => $productId
         ]);
 
+        $product = Product::where('shopify_product_id', $productId)->first();
+
+        if (!$product) {
+            return response()->json([
+                'status'  => false,
+                'message' => "Shopify Product ID {$productId} not found. Please enter a valid Shopify Product ID."
+            ]);
+        }
         return response()->json([
             'status'  => 'success',
             'message' => "Product {$productId} processed for AM"

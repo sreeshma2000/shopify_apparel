@@ -216,7 +216,15 @@ $("#fetch_products_btn").on("click", function() {
  $(document).on('click', '#syncAmProductSubmit', function () {
     var btn = $(this);
      var productId = $('#shopify_product_id').val();
-    var sync_all = $('#sync_all').is(':checked') ? 1 : 0;      
+    var sync_all = $('#sync_all').is(':checked') ? 1 : 0; 
+    if ($('#sync_single').is(':checked') && !productId) {
+        Swal.fire({
+            icon: "warning",
+            title: "Validation Error",
+            text: "Please enter a Shopify Product ID"
+        });
+        return;
+    }     
     $.ajax({
         url: "{{ route('create-am-products') }}",
          type: 'POST',
@@ -233,8 +241,8 @@ $("#fetch_products_btn").on("click", function() {
          success: function (response) {
             $('#syncAmProductModal').modal('hide');
              Swal.fire({
-                icon: 'success',
-                title: 'Success!',
+                icon: response.status ? 'success' : 'warning',
+                title:response.status ? 'success' : 'warning',
                 text: response.message || 'Products synced successfully.',
             });
          },
