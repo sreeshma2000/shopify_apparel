@@ -168,7 +168,14 @@ class OrderController extends Controller
             Artisan::call('create:apparel-orders', [
                 '--orderId' => $orderId
             ]);
+            $order = AmOrder::where('shopify_order_id', $orderId)->first();
 
+            if (!$order) {
+                return response()->json([
+                    'status' => false,
+                    'message' => "Shopify Order ID {$orderId} not found. Please enter a valid Shopify Order ID."
+                ]);
+            }
             $status = true; 
             $message = "Order {$orderId} processed for AM";
 
@@ -204,7 +211,6 @@ class OrderController extends Controller
             'message' => 'No orders ID or sync_all flag provided'
         ], 400);
     }
-
 
     public function fulfilfulOrder(Request $request)
     {

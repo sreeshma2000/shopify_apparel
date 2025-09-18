@@ -305,7 +305,19 @@ $("#fetch_orders_btn").on("click", function() {
 $(document).on('click', '#syncAmOrderSubmit', function () {
     var btn = $(this);
     var orderId = $('#shopify_order_id').val();
-    var sync_all = $('#sync_all').is(':checked') ? 1 : 0;      
+    var sync_all = $('#sync_all').is(':checked') ? 1 : 0;    
+    
+    if ($('#sync_single').is(':checked')) {
+        if (!orderId) {
+            Swal.fire({
+                icon: "warning",
+                title: "Validation Error",
+                text: "Please enter a Shopify Order ID"
+            });
+            return;
+        }
+    }
+
     $.ajax({
 
         url: "{{ route('create-am-orders') }}",
