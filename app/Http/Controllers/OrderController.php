@@ -39,7 +39,9 @@ class OrderController extends Controller
             )->orderBy('id', 'asc');
             return DataTables::of($query)
              ->addColumn('status_message', function ($order) {
-                    if (!empty($order->shopify_fulfillment_status == 'FULFILLED')) {
+                    if($order->is_cancelled ==1){
+                        return '<span class="badge bg-danger">Order Cancelled</span>';
+                    }elseif (!empty($order->shopify_fulfillment_status == 'FULFILLED')) {
                         return '<span class="badge bg-warning text-dark">Shopify order fulfilled</span>';
                     } elseif (!empty($order->payment_id)) {
                         return '<span class="badge bg-info">Payment Generated</span>';
@@ -48,7 +50,7 @@ class OrderController extends Controller
                     } elseif (!empty($order->allocated == 1)) {
                         return '<span class="badge bg-warning text-dark">Apparel Order allocated</span>';
                     } elseif (!empty($order->am_order_id)) {
-                        return '<span class="badge bg-info">ApparelMagic order created</span>';
+                        return '<span class="badge bg-info">AM order created</span>';
                     } elseif (!empty($order->shopify_order_id)) {
                         return '<span class="badge bg-warning text-dark">Shopify order fetched</span>';
                     }  
@@ -60,22 +62,14 @@ class OrderController extends Controller
                     $buttons = '<div class="d-flex">';
 
                     if (!empty($order->ship_id)) {
-                        $buttons .= '<button class="btn btn-sm btn-success fulfil-order-btn" 
-                                        data-id="' . $order->id . '">
-                                        Fulfil
-                                    </button>';
+                        $buttons .= '<button class="btn btn-sm btn-success fulfil-order-btn" data-id="' . $order->id . '">Fulfil</button>';
                     }
 
                     if (empty($order->ship_id) && $order->is_cancelled == 0) {
-                        $buttons .= '<button class="btn btn-sm btn-danger ms-2 cancel-order-btn" 
-                                        data-id="' . $order->id . '">
-                                        Cancel
-                                    </button>';
+                        $buttons .= '<button class="btn btn-sm btn-danger ms-2 cancel-order-btn" data-id="' . $order->id . '">Cancel</button>';
                     }
 
-                    $buttons .= '<a href="' . route('order.show', $order->id) . '" 
-                                    class="btn btn-sm btn-clean btn-icon text-end ms-2" 
-                                    title="Show">
+                    $buttons .= '<a href="' . route('order.show', $order->id) . '" class="btn btn-sm btn-clean btn-icon text-end ms-2" title="Show">
                                     <i class="fa fa-eye"></i>
                                 </a>';
 
