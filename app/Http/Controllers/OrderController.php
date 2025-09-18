@@ -60,18 +60,16 @@ class OrderController extends Controller
                     // dd($order->is_cancelled);
 
                     $buttons = '<div class="d-flex">';
-
+                    $buttons .= '<a href="' . route('order.show', $order->id) . '" class="btn btn-sm btn-clean btn-icon text-end ms-2" title="Show">
+                        <i class="fa fa-eye"></i>
+                    </a>';
                     if (!empty($order->ship_id && $order->shopify_fulfillment_status !== 'FULFILLED')) {
-                        $buttons .= '<button class="btn btn-sm btn-success fulfil-order-btn" data-id="' . $order->id . '">Fulfil</button>';
+                        $buttons .= '<button class="btn btn-sm btn-success ms-2 fulfil-order-btn" data-id="' . $order->id . '">Fulfil</button>';
                     }
 
                     if (empty($order->ship_id) && $order->is_cancelled == 0) {
                         $buttons .= '<button class="btn btn-sm btn-danger ms-2 cancel-order-btn" data-id="' . $order->id . '">Cancel</button>';
                     }
-
-                    $buttons .= '<a href="' . route('order.show', $order->id) . '" class="btn btn-sm btn-clean btn-icon text-end ms-2" title="Show">
-                                    <i class="fa fa-eye"></i>
-                                </a>';
 
                     $buttons .= '</div>';
 
