@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\AmOrder;
 use App\Models\Product;
+use App\Traits\Apparelmagic\ApparelmagicHelper;
+use App\Traits\Shopify\ShopifyHelper;
 use Illuminate\Http\Request;
 
 class HomeController extends Controller
@@ -23,11 +25,13 @@ class HomeController extends Controller
      *
      * @return \Illuminate\Contracts\Support\Renderable
      */
-     public function index()
+    public function index()
     {
         $order_count = AmOrder::count();
         $product_count = Product::count();
 
         return view('home', compact('order_count', 'product_count'));
     }
+
+    
 }

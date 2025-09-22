@@ -2,10 +2,13 @@
 
 namespace App\Traits\Shopify;
 
+use App\Jobs\Apparelmagic\getSkuWarehouse;
+use App\Jobs\Shopify\getShopifyInventory;
 use App\Jobs\Shopify\GetShopifyOrders;
 use App\Jobs\Shopify\GetShopifyProduct;
 use App\Models\AmOrder;
 use App\Models\AmOrderItem;
+use App\Models\InventoryReport;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Setting;
@@ -750,4 +753,94 @@ trait ShopifyHelper
 
         return ['message' => trim($responseString), 'error' => $error];
     }
+
+    public function fetchShopifyInventoryItems($settings, $limit, $nextPageCursor)
+    {
+        $locationSetting = $settings->where('code', 'shopify_location')->first();
+        $location = null;
+
+        if ($locationSetting) {
+            $dataset = json_decode($locationSetting->dataset, true);
+            foreach ($dataset as $item) {
+                if ($item['id'] == $locationSetting->value) {
+                    $location = $item['name'];
+                    break;
+                }
+            }
+        }
+
+        Log::info("location: " . json_encode($location));
+
+        $queryString = 'query inventoryItems($location: ID!, $limit: Int!, $nextPageCursor: String) {
+            inventoryItems(first: $limit, after: $nextPageCursor) {
+                edges {
+                    cursor
+                    node {
+                        id
+                        tracked
+                        sku
+                        variant {
+                            id
+                            title
+                            sku
+                            barcode
+                        }
+                        inventoryLevel(locationId:$location) {
+                            quantities(names: ["available"]) {
+                                name
+                                quantity
+                            }
+                        }
+                    }
+                }
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+            }
+        }';
+
+        $variables = ['location' => $location, 'limit' => $limit, 'nextPageCursor' => $nextPageCursor];
+        $response = $this->getHttp($queryString, $variables);
+
+        if (!empty($response['data']['inventoryItems']['edges'])) {
+            foreach ($response['data']['inventoryItems']['edges'] as $edge) {
+                $node = $edge['node'] ?? null;
+
+                if (!$node || empty($node['sku'])) {
+                    continue;
+                }
+
+                $variant = ProductVariant::where('shopify_sku', $node['sku'])->first();
+
+                InventoryReport::updateOrCreate(
+                    ['shopify_sku_id' => $node['sku']], 
+                    [
+                        'shopify_sku_id'            => $node['sku'],
+                        'product_name'              => $node['variant']['title'] ?? null,
+                        'shopify_barcode'           => $node['variant']['barcode'] ?? null,
+                        'shopify_quantity_available'=> $node['inventoryLevel']['quantities'][0]['quantity'] ?? 0,
+                        'am_sku_id'                 => $variant['sku_id'] ?? null,
+                    ]
+                );
+            }
+
+            $pageInfo = $response['data']['inventoryItems']['pageInfo'] ?? null;
+            $nextPageCursor = $pageInfo['endCursor'] ?? null;
+
+            if (!empty($pageInfo['hasNextPage']) && $nextPageCursor) {
+                getShopifyInventory::dispatch($settings, $limit, $nextPageCursor);
+            }
+            else{
+                $settings = Setting::where('type','apparelmagic')->where('status',1)->get();
+                getSkuWarehouse::dispatch($pageSize = 100, $startAfter = null, $settings);
+            }
+        } else {
+            info("No inventory items found for Shopify location: " . $location);
+        }
+
+        Log::info("response of inventory of shopify: " . json_encode($response));
+    }
+
 }
+

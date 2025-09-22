@@ -24,7 +24,7 @@ class ProductController extends Controller
      */
     public function index(Request $request,Datatables $datatables)
     {
-         if ($request->ajax()) {
+        if ($request->ajax()) {
             $query = Product::select('product_id','style_number','price','description','shopify_handle','image','shopify_product_id','title','total_variants');
 
             return  datatables()->eloquent($query)
@@ -40,8 +40,6 @@ class ProductController extends Controller
                         ? '<span class="badge bg-success">Active</span>'
                         : '<span class="badge bg-danger">Inactive</span>';
                 })
-
-                
 
                 ->rawColumns(['image'])
                 ->make(true);

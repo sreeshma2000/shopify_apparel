@@ -2,6 +2,7 @@
 
 namespace App\Traits\Apparelmagic;
 
+use App\Jobs\Apparelmagic\getSkuWarehouse;
 use App\Models\AmAccount;
 use App\Models\AmCurrency;
 use App\Models\AmCustomer;
@@ -10,6 +11,7 @@ use App\Models\AmOrder;
 use App\Models\AmOrderItem;
 use App\Models\AmReturn;
 use App\Models\AmWarehouse;
+use App\Models\InventoryReport;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Setting;
@@ -1530,5 +1532,79 @@ trait ApparelmagicHelper
         return null;
 
     }
+    
+    public function getSkuWarehouse($page_size = 100, $startAfter = null, $settings)
+    {
+        $apparelUrl   = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+        $token        = $settings->firstWhere('code', 'apparelmagic_token')->value;
+        $warehouse_id = $settings->firstWhere('code','apparelmagic_location')->value;
+        $time         = time();
+        $url = $apparelUrl . '/sku_warehouse';
+        $fetchedSku = 0;
 
+        $params = [
+            'time'         => (string) $time,
+            'token'        => (string) $token,
+            'warehouse_id' => $warehouse_id,
+        ];
+
+        if ($startAfter) {
+            $params['pagination'] = ['last_id' => $startAfter];
+        }
+
+        $response = $this->apparelMagicApiRequest($url, $params);
+        $fetchedSkuWarehouse = $response['response'] ?? [];
+        info("ApparelMagic Warehouse Stock Response: " . json_encode($response));
+
+        if (!empty($fetchedSkuWarehouse) && is_array($fetchedSkuWarehouse)) {
+            foreach ($fetchedSkuWarehouse as $stock) {
+                $variant = ProductVariant::where('sku_id',$stock['sku_id'])->first();
+                // $variant = $this->getApparelInventoryBySkuId($stock['sku_id']);
+
+                if ($variant) {
+                    InventoryReport::where('am_sku_id', $variant['sku_id'])
+                    ->update([
+                        'am_quantity_available' => ($stock['qty_inventory'] ?? 0) - ($stock['qty_on_sales'] ?? 0),
+                        'am_upc_display'        => $variant['upc_display'] ?? null,
+                    ]);
+
+                }
+            }
+        }
+
+        $fetchedSku += $responseCount = count($fetchedSkuWarehouse);
+
+        $startAfter = null;
+        if (!empty($response['meta']['pagination']) && isset($response['meta']['pagination']['last_id'])) {
+            $startAfter = $response['meta']['pagination']['last_id'];
+        }
+
+        if ($startAfter) {
+            getSkuWarehouse::dispatch($page_size, $startAfter, $settings);
+        }
+
+        return $response;
+    }
+
+
+    public function getApparelInventoryBySkuId($sku_id){
+            $settings = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
+            $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+            $token = $settings->firstWhere('code', 'apparelmagic_token')->value;
+            $time = time();
+            $url = $apparelUrl . '/inventory';
+            $params=[
+                'time'=>(string)$time,
+                'token'=>(string)$token,
+                'sku_id'=>$sku_id
+            ];
+            $response=$this->apparelMagicApiRequest($url,$params);
+            if (!empty($response['response']) && is_array($response['response'])) {
+                    return $response['response'][0] ?? null;
+                }
+            else{
+                return null;
+            }
+
+    }
 }

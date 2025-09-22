@@ -24,5 +24,7 @@ Route::post('/orders/cancel', [App\Http\Controllers\OrderController::class, 'can
 Route::post('/orders/create-return', [App\Http\Controllers\OrderController::class, 'createReturn'])->name('orders.create-return');
 Route::post('/orders/create-credit-memo', [App\Http\Controllers\OrderController::class, 'createCreditMemo'])->name('orders.create-credit-memo');
 Route::post('/orders/create-refund', [App\Http\Controllers\OrderController::class, 'createRefund'])->name('orders.create-refund');
+Route::resource('report',App\Http\Controllers\ReportController::class);
+Route::post('/report/sync', [App\Http\Controllers\ReportController::class, 'sync'])->name('inventory.sync');
 
 });

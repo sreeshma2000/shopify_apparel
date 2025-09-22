@@ -67,6 +67,14 @@
                 </a>
             </li>
             <li>
+                <a href="{{ route('report.index') }}" @if (request()->routeIs('report.index')) class="active" @endif>
+                    <span class="nav-link-icon">
+                      <i class="bi bi-cart"></i>
+                    </span>
+                    <span>Reports</span>
+                </a>
+            </li>
+            <li>
                 <a href="#">
                     <span class="nav-link-icon">
                     <i class="fa fa-cog" aria-hidden="true"></i>
