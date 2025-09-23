@@ -215,6 +215,44 @@ $(document).on('click', '#syncBtn', function() {
 
  });
 
+ $('#exportBtn').click(function() {
+    const $btn = $(this);
+    $btn.prop('disabled', true).html('<i class="bi bi-arrow-repeat spin me-1"></i> Exporting...');
+
+    $.ajax({
+        url: '{{ route('inventory.export') }}',
+        method: 'GET',
+        xhrFields: {
+            responseType: 'blob'
+        },
+        success: function(blob, status, xhr) {
+            const disposition = xhr.getResponseHeader('Content-Disposition');
+            let filename = "inventory_report.xlsx";
+            if (disposition && disposition.indexOf('attachment') !== -1) {
+                const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(disposition);
+                if (matches != null && matches[1]) {
+                    filename = matches[1].replace(/['"]/g, '');
+                }
+            }
+
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        },
+        error: function() {
+            alert('Export failed. Please try again.');
+        },
+        complete: function() {
+            $btn.prop('disabled', false).html('<i class="bi bi-download me-1"></i> Export');
+        }
+    });
+});
+
 
 </script>
 @endsection

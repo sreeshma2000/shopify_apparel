@@ -26,5 +26,7 @@ Route::post('/orders/create-credit-memo', [App\Http\Controllers\OrderController:
 Route::post('/orders/create-refund', [App\Http\Controllers\OrderController::class, 'createRefund'])->name('orders.create-refund');
 Route::resource('report',App\Http\Controllers\ReportController::class);
 Route::post('/report/sync', [App\Http\Controllers\ReportController::class, 'sync'])->name('inventory.sync');
+Route::get('inventory-export', [App\Http\Controllers\ReportController::class, 'inventoryExport'])->name('inventory.export');
+
 
 });

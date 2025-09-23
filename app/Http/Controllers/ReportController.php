@@ -6,6 +6,9 @@ use App\Models\InventoryReport;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\Artisan;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class ReportController extends Controller
 {
@@ -55,7 +58,39 @@ class ReportController extends Controller
             ], 500);
         }
     }
+    public function inventoryExport()
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
 
+        $columns = ['AM SKU ID','Shopify SKU','Product Name','AM Qty','Shopify Qty','Shopify Barcode','AM UPC'];
+        $sheet->fromArray($columns, null, 'A1');
+
+        $reports = InventoryReport::all();
+        $row = 2;
+
+        foreach ($reports as $item) {
+            $sheet->setCellValueExplicit("A{$row}", $item->am_sku_id, DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("B{$row}", $item->shopify_sku_id, DataType::TYPE_STRING);
+            $sheet->setCellValue("C{$row}", $item->product_name ?? '--');
+            $sheet->setCellValue("D{$row}", $item->am_quantity_available ?? 0);
+            $sheet->setCellValue("E{$row}", $item->shopify_quantity_available ?? 0);
+            $sheet->setCellValueExplicit("F{$row}", $item->shopify_barcode ?? '--', DataType::TYPE_STRING);
+            $sheet->setCellValueExplicit("G{$row}", $item->am_upc_display ?? '--', DataType::TYPE_STRING);
+            $row++;
+        }
+
+        foreach (range('A','G') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        $filename = 'inventory_report_' . now()->format('Ymd_His') . '.xlsx';
+        $temp_file = tempnam(sys_get_temp_dir(), $filename);
+        $writer->save($temp_file);
+
+        return response()->download($temp_file, $filename)->deleteFileAfterSend(true);
+    }
     /**
      * Show the form for creating a new resource.
      */
