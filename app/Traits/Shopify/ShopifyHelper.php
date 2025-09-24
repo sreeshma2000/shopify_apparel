@@ -142,6 +142,7 @@ trait ShopifyHelper
                             ],
                         [
                                 'shopify_inventory_item_id' => str_replace('gid://shopify/InventoryItem/', '', $productVariant['node']['inventoryItem']['id'] ?? null),
+                                'inventory_level_gid' => $productVariant['node']['inventoryItem']['inventoryLevel']['id'] ?? null,
                                 'style_number'=>$products->style_number??null,
                                 'shopify_sku' => $productVariant['node']['sku'] ?? null,
                                 'shopify_barcode' => $productVariant['node']['barcode'] ?? null,
@@ -832,8 +833,8 @@ trait ShopifyHelper
                 getShopifyInventory::dispatch($settings, $limit, $nextPageCursor);
             }
             else{
-                $settings = Setting::where('type','apparelmagic')->where('status',1)->get();
-                getSkuWarehouse::dispatch($pageSize = 100, $startAfter = null, $settings);
+                // $settings = Setting::where('type','apparelmagic')->where('status',1)->get();
+                // getSkuWarehouse::dispatch($pageSize = 100, $startAfter = null, $settings);
             }
         } else {
             info("No inventory items found for Shopify location: " . $location);
@@ -841,6 +842,107 @@ trait ShopifyHelper
 
         Log::info("response of inventory of shopify: " . json_encode($response));
     }
+
+    public function getInventoryById($inventoryLevelId)
+    {
+        try {
+            $queryString = '
+                query ($id: ID!) {
+                    inventoryLevel(id: $id) {
+                        id
+                        quantities(names: ["available"]) {
+                            name
+                            quantity
+                        }
+                    }
+                }
+            ';
+
+            $variables = [
+                'id' => $inventoryLevelId,
+            ];
+            $response = $this->getHttp($queryString, $variables);
+            Log::info("Shopify inventory response: " . json_encode($response));
+
+            if (!empty($response['data']['inventoryLevel'])) {
+                $inventoryLevel = $response['data']['inventoryLevel'];
+                return $inventoryLevel;
+            }
+
+            return null;
+        } catch (Exception $e) {
+            Log::error("Error in getInventoryById: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function updateInventoryLevel($inventoryItemId, $locationId, $newStock)
+    {
+        // dd($newStock);
+        if (preg_match('/inventory_item_id=(\d+)/', $inventoryItemId, $matches)) {
+            $inventoryItemId = $matches[1]; 
+            // dd($inventoryItemId);
+        }
+        $inventoryItemGid = "gid://shopify/InventoryItem/{$inventoryItemId}";
+        try {
+            $queryString = '
+                mutation inventoryAdjustQuantities($input: InventoryAdjustQuantitiesInput!) {
+                    inventoryAdjustQuantities(input: $input) {
+                        inventoryAdjustmentGroup {
+                            createdAt
+                            reason
+                            changes {
+                                name
+                                delta
+                            }
+                        }
+                        userErrors {
+                            field
+                            message
+                        }
+                    }
+                }
+            ';
+
+            $variables = [
+                "input" => [
+                    "reason"  => "correction",
+                    "name"=> "available",
+                    "changes" => [
+                        [
+                            "delta"           => $newStock,
+                            "inventoryItemId" => $inventoryItemGid,
+                            "locationId"      => $locationId,
+                        ]
+                    ]
+                ]
+            ];
+// dd($variables);
+            $response = $this->getHttp($queryString, $variables);
+
+            Log::info("Shopify inventory update response: " . json_encode($response));
+
+            if (!empty($response['data']['inventoryAdjustQuantities']['userErrors'])) {
+                return [
+                    'status' => 'failure',
+                    'errors' => $response['data']['inventoryAdjustQuantities']['userErrors'],
+                ];
+            }
+
+            return [
+                'status' => 'success',
+                'data'   => $response['data']['inventoryAdjustQuantities']['inventoryAdjustmentGroup'] ?? null,
+            ];
+
+        } catch (Exception $e) {
+            Log::error("Error in updateInventoryLevel: " . $e->getMessage());
+            return [
+                'status'  => 'failure',
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
 
 }
 

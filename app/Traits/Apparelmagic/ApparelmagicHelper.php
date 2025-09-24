@@ -1587,24 +1587,66 @@ trait ApparelmagicHelper
     }
 
 
-    public function getApparelInventoryBySkuId($sku_id){
-            $settings = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
-            $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
-            $token = $settings->firstWhere('code', 'apparelmagic_token')->value;
-            $time = time();
-            $url = $apparelUrl . '/inventory';
-            $params=[
-                'time'=>(string)$time,
-                'token'=>(string)$token,
-                'sku_id'=>$sku_id
-            ];
-            $response=$this->apparelMagicApiRequest($url,$params);
-            if (!empty($response['response']) && is_array($response['response'])) {
-                    return $response['response'][0] ?? null;
-                }
-            else{
-                return null;
+    public function getApparelInventoryBySkuId($sku_id)
+    {
+        $settings = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
+        $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+        $token = $settings->firstWhere('code', 'apparelmagic_token')->value;
+        $time = time();
+        $url = $apparelUrl . '/inventory';
+        $params=[
+            'time'=>(string)$time,
+            'token'=>(string)$token,
+            'sku_id'=>$sku_id
+        ];
+        $response=$this->apparelMagicApiRequest($url,$params);
+        if (!empty($response['response']) && is_array($response['response'])) {
+                return $response['response'][0] ?? null;
             }
+        else{
+            return null;
+        }
 
     }
+
+    public function getAmStockByWarehouse($skuId, $warehouseId)
+    {
+        try {
+            $settings   = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
+            $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+            $token      = $settings->firstWhere('code', 'apparelmagic_token')->value;
+            $time       = time();
+
+            $params = [
+                'time'      => (string)$time,
+                'token'     => (string)$token,
+                'parameters'=> [
+                    [
+                        'field'        => 'warehouse_id',
+                        'operator'     => '=',
+                        'include_type' => 'AND',
+                        'value'        => $warehouseId,
+                    ],
+                    [
+                        'field'        => 'sku_id',
+                        'operator'     => '=',
+                        'include_type' => 'AND',
+                        'value'        => $skuId,
+                    ],
+                ],
+            ];
+
+            $url       = $apparelUrl . '/sku_warehouse';
+            $inventory = $this->apparelMagicApiRequest($url, $params);
+            Log::info("inventory response".json_encode($inventory));
+            if(!empty($inventory['response'])){
+                return $inventory['response'][0];
+            }
+            return [];
+        } catch (Exception $e) {
+            Log::error('Error in getAmStockByWarehouse: ' . $e->getMessage());
+            return null;
+        }
+    }
+
 }
