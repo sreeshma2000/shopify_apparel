@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 
 class HomeController extends Controller
 {
+    use ApparelmagicHelper,ShopifyHelper;
     /**
      * Create a new controller instance.
      *
@@ -27,6 +28,7 @@ class HomeController extends Controller
      */
     public function index()
     {
+        $this->getVendors();
         $order_count = AmOrder::count();
         $product_count = Product::count();
 

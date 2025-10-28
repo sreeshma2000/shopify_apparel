@@ -14,6 +14,7 @@ use App\Models\AmWarehouse;
 use App\Models\InventoryReport;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\PurchaseOrder;
 use App\Models\Setting;
 use App\Models\SizeRange;
 use App\Traits\ApiHelper;
@@ -1648,5 +1649,183 @@ trait ApparelmagicHelper
             return null;
         }
     }
+
+    public function createPurchaseOrder($amOrder)
+    {
+        try {
+            $settings   = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
+            $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+            $token      = $settings->firstWhere('code', 'apparelmagic_token')->value;
+            $time       = time();
+
+            $vendorData = $this->getVendors();
+            Log::info("Fetched vendor data: " . json_encode($vendorData));
+
+            $vendorId = '1060';
+            $warehouseId = $settings->firstWhere('code', 'apparelmagic_location')->value ?? '1234';
+
+            $items = [];
+            foreach ($amOrder->order_items as $orderItem) {
+                $productVariant = ProductVariant::where('shopify_sku', $orderItem->shopify_sku)->first();
+
+                if (!$productVariant) {
+                    Log::warning("ProductVariant not found for SKU: {$orderItem->shopify_sku}");
+                    continue;
+                }
+
+                $items[] = [
+                    'sku_id' => $productVariant->sku_id,
+                    'qty'    => $orderItem->qty_open ?? $orderItem->qty,
+                ];
+            }
+
+            if (empty($items)) {
+                Log::info("No valid items to create PO for AM Order: {$amOrder->am_order_id}");
+                return null;
+            }
+
+            $params = [
+                'time'  => (string) $time,
+                'token' => (string) $token,
+                'header' => [
+                    'vendor_id' => $vendorId,
+                ],
+                'items' => $items,
+            ];
+
+            Log::info("params" . json_encode($params));
+            $url = $apparelUrl . '/purchase_orders';
+            $purchaseOrder = $this->apparelMagicApiPostRequest($url, $params);
+
+            Log::info("PO created for AM Order {$amOrder->am_order_id}: " . json_encode($purchaseOrder));
+
+            if (!empty($purchaseOrder['response'])) {
+                foreach ($purchaseOrder['response'] as $po) {
+                    if (!empty($po['purchase_order_items'])) {
+                        foreach ($po['purchase_order_items'] as $poItem) {
+                            $dateStart = isset($po['date_start']) ? date('Y-m-d', strtotime(str_replace('/', '-', $po['date_start']))) : null;
+                            $dateDue = isset($po['date_due']) ? date('Y-m-d', strtotime(str_replace('/', '-', $po['date_due']))) : null;
+                            $dateExFactory = isset($po['date_ex_factory']) ? date('Y-m-d', strtotime(str_replace('/', '-', $po['date_ex_factory']))) : null;
+
+                            PurchaseOrder::create([
+                                'purchase_order_id' => $po['purchase_order_id'] ?? null,
+                                'warehouse_id'      => $po['warehouse_id'] ?? $warehouseId,
+                                'product_id'        => $poItem['product_id'] ?? null,
+                                'sku_id'            => $poItem['sku_id'] ?? null,
+                                'date_start'        => $dateStart,
+                                'date_due'          => $dateDue,
+                                'date_ex_factory'   => $dateExFactory,
+                                'qty'               => $poItem['qty'] ?? null,
+                                'qty_open'          => $poItem['qty_open'] ?? null,
+                                'qty_cxl'           => $poItem['qty_cxl'] ?? null,
+                                'qty_in_transit'    => $poItem['qty_in_transit'] ?? null,
+                                'qty_received'      => $poItem['qty_received'] ?? null,
+                                'style_number'      => $poItem['style_number'] ?? null,
+                                'description'       => $poItem['description'] ?? null,
+                                'size'              => $poItem['size'] ?? null,
+                                'upc'               => $poItem['upc'] ?? null,
+                                'upc_display'       => $poItem['upc_display'] ?? null,
+                                'sku_alt'           => $poItem['sku_alt'] ?? null,
+                                'unit_cost'         => $poItem['unit_cost'] ?? null,
+                                'amount'            => $poItem['amount'] ?? null,
+                                'is_taxable'        => $poItem['is_taxable'] ?? null,
+                                'notes'             => $poItem['notes'] ?? null,
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            foreach ($items as $item) {
+                $skuId = $item['sku_id'];
+                $inventoryData = $this->getApparelInventoryBySkuId($skuId);
+                Log::info("Inventory for SKU {$skuId}: " . json_encode($inventoryData));
+            }
+
+            return $purchaseOrder;
+
+        } catch (Exception $e) {
+            Log::error("Error creating PO for AM Order {$amOrder->am_order_id}: " . $e->getMessage());
+            return null;
+        }
+    }
+
+
+
+    public function getVendors(){
+        try{
+            $settings   = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
+            $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+            $token      = $settings->firstWhere('code', 'apparelmagic_token')->value;
+            $time       = time();
+            $params =[
+                'time'      => (string)$time,
+                'token'     => (string)$token,
+            ];
+            $url = $apparelUrl . '/vendors';
+            $vendor = $this->apparelMagicApiRequest($url, $params);
+            Log::info("inventory response".json_encode($vendor));
+            if (!empty($vendor['response'])) {
+                Log::info("vendor: " . json_encode($vendor['response'][0]));
+                return $vendor['response'][0];
+            }
+            return [];
+        }
+        catch(Exception $e){
+            Log::error('Error in getAmStockByWarehouse: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+// public function getPurchaseOrder($amOrder)
+// {
+//     try {
+//         Log::info("get purchase order");
+//         $settings   = Setting::where(['type' => 'apparelmagic', 'status' => 1])->get();
+//         $apparelUrl = $settings->firstWhere('code', 'apparelmagic_api_endpoint')->value;
+//         $token      = $settings->firstWhere('code', 'apparelmagic_token')->value;
+//         $time       = time();
+
+//         $orderSkuIds = [];
+//         foreach ($amOrder->order_items as $item) {
+//             $pv = ProductVariant::where('shopify_sku', $item->shopify_sku)->first();
+//             if ($pv) {
+//                 $orderSkuIds[] = $pv->sku_id;
+//             }
+//         }
+
+//         $params = [
+//             'time'  => (string)$time,
+//             'token' => (string)$token,
+//             'items' => array_map(function($skuId) {
+//                 return ['sku_id' => $skuId];
+//             }, $orderSkuIds),
+//         ];
+
+//         Log::info("params".json_encode($params));
+
+//         $url = $apparelUrl . '/purchase_orders';
+//         $response = $this->apparelMagicApiRequest($url, $params);
+
+//         Log::info("response".json_encode($response));
+
+//         if (!empty($response['response'])) {
+//             foreach ($response['response'] as $po) {
+//                 if (!empty($po['purchase_order_items'])) {
+//                     foreach ($po['purchase_order_items'] as $poItem) {
+//                         if (in_array($poItem['sku_id'], $orderSkuIds)) {
+//                             return $po;
+//                         }
+//                     }
+//                 }
+//             }
+//         }
+
+//         return null;
+//     } catch (Exception $e) {
+//         Log::error('Error in getPurchaseOrder: ' . $e->getMessage());
+//         return null;
+//     }
+// }
 
 }
